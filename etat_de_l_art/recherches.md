@@ -108,10 +108,12 @@ Dans une journée type, on observe plusieurs **moments clés** où les mises arr
 
 ## 11) Notes pour plus tard
 
+* SITE A EXPLORER ABSOLUMENT : https://turfmining.fr/constitution-des-datasets/
 
-https://duckdb.org/ : permet de faire de l'analyse de données relativement facilement. On peut lui donner à manger du csv, json, MySQL
 
-script pour récupérer en "live" les cotes pmu : 
+* https://duckdb.org/ : permet de faire de l'analyse de données relativement facilement. On peut lui donner à manger du csv, json, MySQL
+
+* script pour récupérer en "live" les cotes pmu : 
 ```python
 import requests
 import json

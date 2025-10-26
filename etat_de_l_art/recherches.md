@@ -108,8 +108,11 @@ Dans une journée type, on observe plusieurs **moments clés** où les mises arr
 
 ## 11) Notes pour plus tard
 
-* SITE A EXPLORER ABSOLUMENT : https://turfmining.fr/constitution-des-datasets/
+* video pour trouver les json de paris turf : https://www.youtube.com/watch?v=AOiVRQg1iVM
 
+* Site à explorer : https://turfmining.fr/constitution-des-datasets/
+
+* Pour récupérer en live les cotes zeturf : https://www.zeturf.fr/fr/course/2025-04-08/R4C7-vincennes-prix-palma/api/cotes
 
 * https://duckdb.org/ : permet de faire de l'analyse de données relativement facilement. On peut lui donner à manger du csv, json, MySQL
 

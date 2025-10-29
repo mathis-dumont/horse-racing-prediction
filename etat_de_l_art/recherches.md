@@ -116,6 +116,8 @@ Dans une journée type, on observe plusieurs **moments clés** où les mises arr
 
 * https://duckdb.org/ : permet de faire de l'analyse de données relativement facilement. On peut lui donner à manger du csv, json, MySQL
 
+* tous les sites ont le mm fournisseur de cote
+
 * script pour récupérer en "live" les cotes pmu : 
 ```python
 import requests

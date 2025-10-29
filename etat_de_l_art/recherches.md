@@ -107,6 +107,7 @@ Dans une journée type, on observe plusieurs **moments clés** où les mises arr
 ---
 
 ## 11) Notes pour plus tard
+* lien du discord : https://discord.gg/8JnDw2Dd (valable 7 jours)
 
 * video pour trouver les json de paris turf : https://www.youtube.com/watch?v=AOiVRQg1iVM
 

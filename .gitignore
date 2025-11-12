@@ -1,1 +1,6 @@
 ./venv
+dataset/*.csv
+dataset/*.xlsx
+*.ipynb_checkpoints/
+.env
+.DS_Store

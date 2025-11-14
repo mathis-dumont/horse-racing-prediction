@@ -119,6 +119,8 @@ Dans une journée type, on observe plusieurs **moments clés** où les mises arr
 
 * tous les sites ont le mm fournisseur de cote
 
+* pour une date donnée : https://turfinfo.api.pmu.fr/rest/client/1/programme/05112025
+
 * script pour récupérer en "live" les cotes pmu : 
 ```python
 import requests

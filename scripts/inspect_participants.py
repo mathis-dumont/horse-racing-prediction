@@ -35,7 +35,7 @@ def main():
 
     print(f"Nombre de participants : {len(participants)}\n")
 
-    # Champs à analyser (ta liste)
+    # Champs à analyser
     fields = {
         "numPmu": "numPmu",
         "age": "age",

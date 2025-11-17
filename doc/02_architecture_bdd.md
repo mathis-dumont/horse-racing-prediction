@@ -69,9 +69,11 @@ La base de données est structurée autour des tables suivantes :
 | `penetrometer`           | `NUMERIC`       | Valeur du pénétromètre (mesure de la souplesse du terrain). |
 | `declared_runners_count` | `INT`           | Nombre de partants déclarés.          |
 | `conditions_text`        | `TEXT`          | Texte complet des conditions de la course. |
-| `race_status`            | `TEXT`          | Statut de la course (ex: "Arrivée définitive", "Non courue"). |
+| `race_status`            | `TEXT`          | Statut (ex: "FIN_COURSE") (**leakage**) |
 | `finish_order_raw`       | `JSONB`         | Ordre d'arrivée brut sous format JSON (permet une flexibilité). (**leakage**) |
-| `race_duration_s`        | `INT`           | Durée totale de la course en secondes. (**leakage**) |
+| `race_duration_s`        | `INT`           | Temps de la course. (**leakage**) |
+| `race_status_category`   | `TEXT`          | Statut de la course (ex: "Arrivée définitive", "Non courue"). (**leakage**) |
+
 
 ### 4. `horse`
 

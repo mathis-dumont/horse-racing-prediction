@@ -132,6 +132,7 @@ def main():
 if __name__ == "__main__":
     main()
 
+# RESULTATS :
 # Téléchargement des performances détaillées : https://online.turfinfo.api.pmu.fr/rest/client/61/programme/05112025/R1/C1/performances-detaillees/pretty
 # Nombre de participants (chevaux) dans le JSON 3 : 14
 

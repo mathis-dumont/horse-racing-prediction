@@ -23,7 +23,6 @@ Build a full horse-race prediction system using PMU API data:
 * Connected DBeaver to Supabase
 * Solved IPv6 / Supabase connection issue using **pooler IPv4**
 * Added `.env`, `.env.example`, `.gitignore`, requirements.txt
-* Implemented repo-dump script (`dump_repo.py`)
 
 ### 🔜 Nothing left here.
 
@@ -45,7 +44,6 @@ Build a full horse-race prediction system using PMU API data:
   * `bet_report`
   * `prediction`
   * raw tables (JSON backups)
-* Added missing column `race_status_category`
 * Verified schema integrity via DBeaver
 
 ### 🔜 Nothing left here.
@@ -63,7 +61,7 @@ Build a full horse-race prediction system using PMU API data:
   * `inspect_performances.py`
   * `inspect_rapports.py`
 * Verified expected fields vs API actual fields (JSON 1→4)
-* Created Markdown **feature reliability** file in canvas
+* Checked the **feature reliability** in the 01_inventaire_json.md
 
 ### 🔜 Nothing left here.
 

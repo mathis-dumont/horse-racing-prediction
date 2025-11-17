@@ -253,6 +253,7 @@ def main():
 if __name__ == "__main__":
     main()
 
+# RESULTATS :
 # Téléchargement du programme : https://online.turfinfo.api.pmu.fr/rest/client/1/programme/05112025
 # dict_keys(['programme', 'timestampPMU'])
 # dict_keys(['cached', 'date', 'timezoneOffset', 'reunions', 'prochainesCoursesAPartir', 'datesProgrammesDisponibles'])

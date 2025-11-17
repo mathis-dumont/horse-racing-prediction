@@ -70,8 +70,8 @@ La base de données est structurée autour des tables suivantes :
 | `declared_runners_count` | `INT`           | Nombre de partants déclarés.          |
 | `conditions_text`        | `TEXT`          | Texte complet des conditions de la course. |
 | `race_status`            | `TEXT`          | Statut de la course (ex: "Arrivée définitive", "Non courue"). |
-| `finish_order_raw`       | `JSONB`         | Ordre d'arrivée brut sous format JSON (permet une flexibilité). |
-| `race_duration_s`        | `INT`           | Durée totale de la course en secondes. |
+| `finish_order_raw`       | `JSONB`         | Ordre d'arrivée brut sous format JSON (permet une flexibilité). (**leakage**) |
+| `race_duration_s`        | `INT`           | Durée totale de la course en secondes. (**leakage**) |
 
 ### 4. `horse`
 
@@ -108,15 +108,15 @@ La base de données est structurée autour des tables suivantes :
 | `career_races_count`     | `INT`           | Nombre de courses courues en carrière. |
 | `career_winnings`        | `NUMERIC`       | Gains cumulés en carrière.           |
 | `reference_odds`         | `NUMERIC`       | Cote de référence avant la course.    |
-| `live_odds`              | `NUMERIC`       | Cote en direct au départ de la course. |
+| `live_odds`              | `NUMERIC`       | Cote en direct au départ de la course. (**leakage**) |
 | `raw_performance_string` | `TEXT`          | Chaîne brute de la "musique" du cheval. |
+| `trainer_advice`         | `TEXT`          | Avis de l'entraîneur *avant* la course.           |
 | **Cibles (post-course)** |                 |                                      |
-| `finish_rank`            | `INT`           | Rang d'arrivée final (NULL si non classé). |
-| `incident`               | `TEXT`          | Description d'un incident pendant la course (ex: "tombé", "distancé"). |
-| `time_achieved_s`        | `INT`           | Temps réalisé en secondes.           |
-| `reduction_km`           | `NUMERIC`       | Réduction kilométrique (vitesse moyenne). |
-| `post_race_comment`      | `TEXT`          | Commentaire après la course.         |
-| `trainer_advice`         | `TEXT`          | Avis de l'entraîneur.                |
+| `finish_rank`            | `INT`           | Rang d'arrivée final (NULL si non classé). (**leakage**) |
+| `incident`               | `TEXT`          | Description d'un incident pendant la course (ex: "tombé", "distancé"). (**leakage**) |
+| `time_achieved_s`        | `INT`           | Temps réalisé en secondes. (**leakage**)          |
+| `reduction_km`           | `NUMERIC`       | Réduction kilométrique (vitesse moyenne). (**leakage**) |
+| `post_race_comment`      | `TEXT`          | Commentaire après la course. (**leakage**)        |
 
 ### 6. `horse_race_history`
 

@@ -55,6 +55,7 @@ logs/
 data/raw/
 data/tmp/
 *.json
+dump/
 
 # Notebooks imports
 notebooks/.ipynb_checkpoints/

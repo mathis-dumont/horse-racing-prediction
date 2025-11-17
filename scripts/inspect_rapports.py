@@ -121,6 +121,7 @@ def main():
 if __name__ == "__main__":
     main()
 
+# RESULTATS :
 # Téléchargement des rapports définitifs : https://online.turfinfo.api.pmu.fr/rest/client/1/programme/05112025/R1/C1/rapports-definitifs
 # Nombre de types de pari (entries dans la liste) : 7
 

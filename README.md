@@ -15,8 +15,7 @@ Ce projet vise à construire un système complet pour la collecte de données, l
 ## Structure du projet
 
 ```
-projet/
-│
+horse-racing-prediction/
 ├── scripts/                # Scripts d'ingestion et d’inspection des données brutes
 ├── src/pmu_prediction/     # Code principal (API, ingestion, DB, ML)
 │   ├── pmu_api/            # Client HTTP et gestion des URLs

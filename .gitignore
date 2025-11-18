@@ -1,0 +1,71 @@
+# -----------------------
+# Python basics
+# -----------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.tmp
+*.log
+
+# Virtual environments
+.env
+.venv/
+venv/
+ENV/
+env/
+*.env
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+.notebooks_checkpoints/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
+
+# PyCharm
+.idea/
+
+# -----------------------
+# Project-specific
+# -----------------------
+
+# Local settings (DB credentials)
+.env
+.env.local
+.env.production
+.env.development
+
+# Logs
+logs/
+*.log
+
+# Data dumps
+data/raw/
+data/tmp/
+*.json
+dump/
+
+# Notebooks imports
+notebooks/.ipynb_checkpoints/
+
+# Ignore test cache
+.pytest_cache/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Supabase CLI cache
+.supabase/

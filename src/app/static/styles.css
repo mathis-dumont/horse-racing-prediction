@@ -1,0 +1,334 @@
+/* ================== BASE ================== */
+:root {
+    --pmu-green: #00843D;
+    --pmu-green-light: #00a14c;
+    --bg-page: #f3f7f3;
+    --border-soft: #d6e3d6;
+    --text-main: #222;
+    --text-muted: #666;
+    --card-bg: #ffffff;
+    --accent: #f4faf4;
+    --danger: #d9534f;
+    --success: #2e8b57;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-page);
+    color: var(--text-main);
+}
+
+/* ================== HEADER ================== */
+
+.header {
+    background: var(--pmu-green);
+    color: white;
+    padding: 1.8rem 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.header-main {
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.header h1 {
+    margin: 0 0 0.4rem;
+    font-size: 1.7rem;
+}
+
+.subtitle {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 0.95rem;
+}
+
+/* ================== LAYOUT ================== */
+
+.page {
+    max-width: 1100px;
+    margin: 2rem auto;
+    padding: 0 1rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* ================== CARD ================== */
+
+.card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 1.4rem 1.6rem 1.6rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border-left: 5px solid var(--pmu-green);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+}
+
+.card-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+/* ================== BADGES & BUTTONS ================== */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    border: 1px solid transparent;
+}
+
+.badge-soft {
+    background: #e6f3e7;
+    color: var(--pmu-green);
+    border-color: #cde5cf;
+}
+
+.btn-ghost {
+    border-radius: 999px;
+    border: 1px solid var(--border-soft);
+    background: transparent;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.btn-ghost:hover {
+    background: #f1f5f1;
+}
+
+/* ================== COURSES DU JOUR ================== */
+
+.courses-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.course-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.7rem 0.9rem;
+    background: #f7fbf7;
+    border-radius: 10px;
+    border: 1px solid var(--border-soft);
+    cursor: pointer;
+    transition: background 0.15s, transform 0.08s;
+}
+
+.course-item:hover {
+    background: #edf7ee;
+    transform: translateY(-1px);
+}
+
+.course-main {
+    display: flex;
+    flex-direction: column;
+}
+
+.course-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.course-sub {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.course-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: 0.78rem;
+}
+
+.tag {
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: #e6f3e7;
+    color: var(--pmu-green);
+    margin-bottom: 0.2rem;
+}
+
+/* ================== BETS PANEL ================== */
+
+.bets-panel {
+    margin-top: 1.2rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border-soft);
+}
+
+.bets-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.6rem;
+}
+
+.bets-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.bet-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--pmu-green);
+    background: white;
+    font-size: 0.82rem;
+}
+
+.bet-label {
+    font-weight: 500;
+}
+
+.bet-btn {
+    border: none;
+    border-radius: 999px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    background: var(--pmu-green);
+    color: white;
+}
+
+.bet-btn:hover {
+    background: var(--pmu-green-light);
+}
+
+/* ================== PREDICTIONS PANEL ================== */
+
+.predictions-panel {
+    margin-top: 1.2rem;
+}
+
+.predictions-header h3 {
+    margin: 0 0 0.6rem;
+    font-size: 1rem;
+}
+
+/* ================== TABLES ================== */
+
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.table th,
+.table td {
+    padding: 0.55rem 0.5rem;
+    border-bottom: 1px solid #e5ece5;
+    text-align: left;
+}
+
+.table thead th {
+    background: #e7f2e7;
+    color: #315b36;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.table-compact td,
+.table-compact th {
+    padding: 0.45rem 0.45rem;
+}
+
+.table tr:nth-child(even) td {
+    background: #fafdf9;
+}
+
+.table tr:hover td {
+    background: #f2f8f2;
+}
+
+/* ================== STATS ================== */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.stat-item {
+    padding: 0.9rem 1rem;
+    border-radius: 10px;
+    background: #f7fbf7;
+    border: 1px solid var(--border-soft);
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.2rem;
+}
+
+.stat-value {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--pmu-green);
+}
+
+.stat-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+}
+
+/* ================== STATUS COLORS ================== */
+
+.text-success {
+    color: var(--success);
+}
+
+.text-danger {
+    color: var(--danger);
+}
+
+/* ================== FOOTER ================== */
+
+.footer {
+    text-align: center;
+    padding: 1rem 0 1.5rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* ================== UTILITAIRES ================== */
+
+.hidden {
+    display: none;
+}
+
+/* Responsive simple */
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}

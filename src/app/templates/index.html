@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prédictions Courses Hippiques</title>
+    <!-- Lien Flask vers le CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header class="header">
+        <div class="header-main">
+            <h1>Prédictions Courses Hippiques</h1>
+            <p class="subtitle">
+                Tableau de bord des courses, prédictions du modèle, et statistiques de performance.
+            </p>
+        </div>
+    </header>
+
+    <main class="page">
+
+        <!-- ===================== COURSES DU JOUR ===================== -->
+        <section class="card">
+            <div class="card-header">
+                <h2>🏇 Courses du jour</h2>
+                <span id="courses-date" class="badge badge-soft">Aujourd'hui</span>
+            </div>
+
+            <div id="courses-list" class="courses-list">
+                <!-- Rempli dynamiquement par app.js -->
+            </div>
+
+            <div id="bets-panel" class="bets-panel hidden">
+                <div class="bets-header">
+                    <h3 id="bets-course-title">Types de paris</h3>
+                    <button id="close-bets" class="btn-ghost">Fermer</button>
+                </div>
+                <div id="bets-list" class="bets-list">
+                    <!-- Types de paris insérés ici -->
+                </div>
+            </div>
+
+            <div id="predictions-panel" class="predictions-panel hidden">
+                <div class="predictions-header">
+                    <h3 id="predictions-title">Prédictions du modèle</h3>
+                </div>
+                <div class="table-wrapper">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Cheval</th>
+                                <th>Prob. gagnant</th>
+                                <th>Prob. placé</th>
+                                <th>Côte temps réel</th>
+                                <th>Commentaire</th>
+                            </tr>
+                        </thead>
+                        <tbody id="predictions-body">
+                            <!-- Lignes ajoutées dynamiquement -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================== RESULTATS RECENTS ===================== -->
+        <section class="card">
+            <div class="card-header">
+                <h2>📆 Résultats récents</h2>
+                <span class="badge badge-soft">Semaine en cours</span>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="table table-compact">
+                    <thead>
+                        <tr>
+                            <th>Course</th>
+                            <th>Type de pari</th>
+                            <th>Prédiction du modèle</th>
+                            <th>Résultat réel</th>
+                            <th>Modèle correct ?</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-body">
+                        <!-- Rempli par app.js -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ===================== STATISTIQUES GLOBALES ===================== -->
+        <section class="card">
+            <div class="card-header">
+                <h2>📈 Statistiques du modèle</h2>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-label">Taux de prédictions correctes</div>
+                    <div id="stat-global" class="stat-value">– %</div>
+                    <div id="stat-period" class="stat-sub">Depuis le –</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Simple gagnant</div>
+                    <div id="stat-sg" class="stat-value">– %</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Simple placé</div>
+                    <div id="stat-sp" class="stat-value">– %</div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="footer">
+        <p>Prédictions générées par votre modèle &mdash; mise à jour quotidienne.</p>
+    </footer>
+
+    <!-- Script JS -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

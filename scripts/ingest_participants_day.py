@@ -92,7 +92,7 @@ def upsert_horse(cur, p):
     age = p.get("age")
     sex = p.get("sexe")
 
-    # On dérive l'année approximative de naissance
+    # Approximate birth year
     birth_year = None
     if age is not None:
         birth_year = dt.date.today().year - int(age)
@@ -187,7 +187,7 @@ def upsert_race_participant(cur, race_id, horse_id, p):
     return cur.fetchone()[0]
 
 
-def ingest_participants(date, meeting, race):
+def ingest_participants_for_date(date, meeting, race):
     logger = logging.getLogger(__name__)
     logger.info(
         "Starting participants ingestion for date=%s R%sC%s",
@@ -219,8 +219,8 @@ def ingest_participants(date, meeting, race):
         with conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
 
-                # On récupère l’ID de la course dans la table "race"
-                # Convertir 05112025 -> 2025-11-04 (même logique que ingest_programme)
+                # To recover the race ID in the race table
+                # Convert 05112025 -> 2025-11-04
                 sql_date = dt.datetime.strptime(date, "%d%m%Y").date()
 
                 cur.execute(
@@ -270,4 +270,4 @@ def parse_args():
 if __name__ == "__main__":
     setup_logging()
     args = parse_args()
-    ingest_participants(args.date, args.meeting, args.race)
+    ingest_participants_for_date(args.date, args.meeting, args.race)

@@ -23,8 +23,7 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=".env")
 
 RAPPORTS_URL_TEMPLATE = (
-    "https://online.turfinfo.api.pmu.fr/rest/client/1/"
-    "programme/{date}/R{meeting}/C{race}/rapports-definitifs"
+    "https://online.turfinfo.api.pmu.fr/rest/client/1/programme/{date}/R{meeting}/C{race}/rapports-definitifs"
 )
 
 
@@ -76,7 +75,7 @@ def fetch_rapports_json(date: str, meeting: int, race: int):
     resp.raise_for_status()
     data = resp.json()
 
-    # Normalement, l'API renvoie directement une liste.
+    # The API directly returns a list
     if isinstance(data, list):
         bets = data
     elif isinstance(data, dict):
@@ -157,7 +156,7 @@ def insert_bet_report(cur, bet_id: int, report: dict) -> int:
     return report_id
 
 
-def ingest_rapports(date: str, meeting: int, race: int) -> None:
+def ingest_rapports_for_date(date: str, meeting: int, race: int) -> None:
    
     logger = logging.getLogger(__name__)
     logger.info(
@@ -178,7 +177,7 @@ def ingest_rapports(date: str, meeting: int, race: int) -> None:
         with conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
 
-                # On récupère l’ID de la course dans la table "race"
+                # Recover race ID in the race table
                 sql_date = dt.datetime.strptime(date, "%d%m%Y").date()
 
                 cur.execute(
@@ -238,4 +237,4 @@ def parse_args():
 if __name__ == "__main__":
     setup_logging()
     args = parse_args()
-    ingest_rapports(args.date, args.meeting, args.race)
+    ingest_rapports_for_date(args.date, args.meeting, args.race)

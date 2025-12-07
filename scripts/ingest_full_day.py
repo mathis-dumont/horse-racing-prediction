@@ -88,6 +88,13 @@ def ingest_full_day(date: str):
     logger = logging.getLogger("ingest_full_day")
     logger.info("Starting FULL ingestion for date %s", date)
 
+    # Get program of the day
+    # --- Ingestion Step 1: Programme (JSON 1)
+    try:
+        ingest_programme_for_date(date)
+    except Exception as e:
+        logger.error("Failed to ingest programme for %s: %s", date, e)
+        return
     # Get full day structure
     meetings = get_meetings_and_races(date)
     logger.info("Found %d meetings for the day", len(meetings))
@@ -100,9 +107,6 @@ def ingest_full_day(date: str):
             logger.info("Processing Race R%sC%s", meeting_id, race_id)
 
             try:
-                # --- Ingestion Step 1: Programme (JSON 1)
-                ingest_programme_for_date(date)
-
                 # --- Ingestion Step 2: Participants (JSON 2)
                 ingest_participants_for_date(date, meeting_id, race_id)
 

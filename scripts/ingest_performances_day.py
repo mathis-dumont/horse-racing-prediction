@@ -107,15 +107,29 @@ def insert_horse_race_history(cur, horse_id, course_json):
         cur.execute(
             """
             INSERT INTO horse_race_history (
-                horse_id, race_date, discipline, prize_money, distance_m,
-                first_place_time_s, finish_place, finish_status,
-                jockey_weight, draw_number, reduction_km, distance_traveled_m
+                horse_id, race_date, discipline, distance_m,
+                prize_money, first_place_time_s,
+                finish_place, finish_status,
+                jockey_weight, draw_number,
+                reduction_km, distance_traveled_m
             ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (horse_id, race_date, discipline, distance_m)
+            DO UPDATE SET
+                prize_money = EXCLUDED.prize_money,
+                first_place_time_s = EXCLUDED.first_place_time_s,
+                finish_place = EXCLUDED.finish_place,
+                finish_status = EXCLUDED.finish_status,
+                jockey_weight = EXCLUDED.jockey_weight,
+                draw_number = EXCLUDED.draw_number,
+                reduction_km = EXCLUDED.reduction_km,
+                distance_traveled_m = EXCLUDED.distance_traveled_m
             """,
             (
-                horse_id, course_date, discipline, prize_money, distance_m,
-                first_place_time_s, finish_place, finish_status,
-                jockey_weight, draw_number, reduction_km, distance_traveled_m
+                horse_id, course_date, discipline, distance_m,
+                prize_money, first_place_time_s,
+                finish_place, finish_status,
+                jockey_weight, draw_number,
+                reduction_km, distance_traveled_m
             )
         )
 

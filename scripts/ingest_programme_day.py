@@ -150,11 +150,11 @@ def ingest_programme_for_date(date_code: str):
     programme = data.get("programme") or {}
     
     # Convert timestamp to date
-    ts = programme.get("date")
-    if not ts:
-        logger.error("No date found in JSON.")
-        return
-    program_date = dt.datetime.utcfromtimestamp(ts / 1000).date()
+    try:
+        program_date = dt.datetime.strptime(date_code, "%d%m%Y").date()
+    except ValueError:
+        ts = programme.get("date")
+        program_date = dt.datetime.fromtimestamp(ts / 1000).date()
     
     conn = get_db_connection()
     try:

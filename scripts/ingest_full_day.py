@@ -9,7 +9,7 @@ Order of execution:
 4. Rapports (JSON 4)      -> Creates RaceBets, BetReports.
 
 Usage:
-    python scripts/ingest_full_day.py --date 05112025
+    python3 scripts/ingest_full_day.py --date 05112025
 """
 
 import argparse
@@ -35,7 +35,7 @@ except ImportError as e:
 def setup_logging():
     """Configure logging for the full orchestration script."""
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
 

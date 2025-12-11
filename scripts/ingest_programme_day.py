@@ -39,11 +39,26 @@ def get_db_connection():
     return psycopg2.connect(db_url)
 
 def fetch_programme_json(date_code: str) -> dict:
+    """
+    Fetches the daily programme with browser-like headers.
+    """
     url = PROGRAMME_URL_TEMPLATE.format(date_code=date_code)
     logging.info("Fetching programme JSON from %s", url)
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Referer": "https://www.pmu.fr/",
+        "Origin": "https://www.pmu.fr"
+    }
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.exceptions.RequestException as e:
+        logging.error("Network error fetching programme: %s", e)
+        raise e
 
 def insert_daily_program(cur, program_date: dt.date) -> int:
     """Insert daily_program if not exists, return program_id."""

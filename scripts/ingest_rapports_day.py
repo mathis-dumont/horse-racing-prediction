@@ -1,308 +1,138 @@
 """
-Ingest PMU definitive reports (JSON 4)
-for a given date / meeting / race
-into PostgreSQL tables:
+Ingest PMU reports (JSON 4) for a WHOLE day.
+Scope: Race Bet -> Bet Report.
 
-- race_bet
-- bet_report
+Logic:
+    - Queries DB for all races of the date.
+    - Fetches reports (rapports-definitifs).
+    - Inserts betting metadata (race_bet) and results (bet_report).
+    - Uses ON CONFLICT DO NOTHING (requires the constraints added in SQL/02).
 
 Usage:
-    python ingest_rapports_day.py --date 05112025 --meeting 1 --race 1
+    python scripts/ingest_rapports_day.py --date 05112025
 """
 
 import argparse
 import datetime as dt
 import logging
 import os
-
-import psycopg2
-import psycopg2.extras
 import requests
+import psycopg2
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv(dotenv_path=".env")
+load_dotenv()
 
 RAPPORTS_URL_TEMPLATE = (
-    # URL template for fetching the definitive reports (JSON 4) from the PMU API
     "https://online.turfinfo.api.pmu.fr/rest/client/1/programme/{date}/R{meeting}/C{race}/rapports-definitifs"
 )
 
-
-def setup_logging() -> None:
-    """Configure basic logging for the script."""
+def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
 
-
 def get_db_connection():
-    """
-    Create a PostgreSQL connection using the DB_URL environment variable.
+    return psycopg2.connect(os.getenv("DB_URL"))
 
-    Example:
-        export DB_URL="postgresql://USER:PASSWORD@HOST:PORT/postgres"
-    """
-    db_url = os.getenv("DB_URL")
-    if not db_url:
-        raise RuntimeError("DB_URL environment variable is not set")
-    return psycopg2.connect(db_url)
-
-
-def safe_get(obj, path, default=None):
-    """
-    Retrieve a value from a nested dictionary using 'a.b.c' dot notation.
-    Returns default if any of the keys is missing along the path.
-    """
-    keys = path.split(".")
-    cur = obj
-    for k in keys:
-        if not isinstance(cur, dict) or k not in cur:
-            return default
-        cur = cur[k]
-    return cur
-
-
-def fetch_rapports_json(date: str, meeting: int, race: int):
-    """
-    Fetch JSON 4 (rapports-definitifs) for a given date / meeting / race.
-
-    Returns the parsed JSON as a Python list of bets.
-    """
-    url = RAPPORTS_URL_TEMPLATE.format(
-        date=date,
-        meeting=meeting,
-        race=race,
-    )
-    logging.info("Fetching rapports JSON from %s", url)
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-
-    # The API might return a list directly or a dictionary containing the list
-    if isinstance(data, list):
-        bets = data
-    elif isinstance(data, dict):
-        bets = data.get("rapportsDefinitifs", [])
-    else:
-        bets = []
-
-    return bets
-
-
-def insert_race_bet(cur, race_id: int, bet: dict) -> int:
-    """
-    Inserts (or reuses) a row in race_bet for this race and bet type.
-    If the bet already exists for this race, it is reused to avoid duplicates.
-    """
-    # Extract data using key names from the PMU API
-    bet_type = bet.get("typePari")
-    bet_family = bet.get("famillePari")
-    base_stake = bet.get("miseBase")
-    is_refunded = bet.get("rembourse")
-
-    # 1) Check if this bet already exists for this race
+def get_races_for_date(cur, sql_date):
+    """Retrieve (race_id, meeting_number, race_number) for a SQL date."""
     cur.execute(
         """
-        SELECT bet_id
-        FROM race_bet
-        WHERE race_id = %s
-          AND bet_type = %s
-          AND bet_family = %s
-          AND base_stake = %s
-          AND is_refunded = %s;
+        SELECT r.race_id, rm.meeting_number, r.race_number
+        FROM race r
+        JOIN race_meeting rm ON r.meeting_id = rm.meeting_id
+        JOIN daily_program dp ON rm.program_id = dp.program_id
+        WHERE dp.program_date = %s
+        ORDER BY rm.meeting_number, r.race_number;
         """,
-        (race_id, bet_type, bet_family, base_stake, is_refunded),
+        (sql_date,)
     )
-    row = cur.fetchone()
-    if row is not None:
-        bet_id = row[0]
-        logging.info(
-            "race_bet already exists for race_id=%s, bet_type=%s (bet_id=%s) – reusing",
-            race_id,
-            bet_type,
-            bet_id,
-        )
-        return bet_id
+    return cur.fetchall()
 
-    # 2) Otherwise, insert a new record
-    logging.info(
-        "Inserting race_bet for race_id=%s, bet_type=%s",
-        race_id,
-        bet_type,
-    )
+def fetch_rapports_json(date, meeting, race):
+    url = RAPPORTS_URL_TEMPLATE.format(date=date, meeting=meeting, race=race)
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 404:
+            return []
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list): return data
+        return data.get("rapportsDefinitifs", []) if isinstance(data, dict) else []
+    except Exception as e:
+        logging.error("Failed to fetch reports for %s: %s", url, e)
+        return []
 
+def insert_race_bet(cur, race_id, bet):
+    """Insert race_bet if not exists, return bet_id."""
     cur.execute(
         """
-        INSERT INTO race_bet (
-            race_id,
-            bet_type,
-            bet_family,
-            base_stake,
-            is_refunded
-        )
+        INSERT INTO race_bet (race_id, bet_type, bet_family, base_stake, is_refunded)
         VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (race_id, bet_type) DO NOTHING
         RETURNING bet_id;
         """,
-        (race_id, bet_type, bet_family, base_stake, is_refunded),
-    )
-
-    bet_id = cur.fetchone()[0]
-    return bet_id
-
-
-def insert_bet_report(cur, bet_id: int, report: dict) -> int:
-    """
-    Inserts (or reuses) a row in bet_report for this winning combination.
-    If the combination already exists for this bet_id, it is reused to avoid duplicates.
-    """
-    # Extract data using key names from the PMU API
-    combination = report.get("combinaison")
-    dividend = report.get("dividende")
-    dividend_per_1e = report.get("dividendePourUnEuro")
-    winners_count = report.get("nombreGagnants")
-
-    # 1) Check if this report already exists
-    cur.execute(
-        """
-        SELECT report_id
-        FROM bet_report
-        WHERE bet_id = %s
-          AND combination = %s;
-        """,
-        (bet_id, combination),
+        (
+            race_id, bet.get("typePari"), bet.get("famillePari"),
+            bet.get("miseBase"), bet.get("rembourse")
+        )
     )
     row = cur.fetchone()
-    if row is not None:
-        report_id = row[0]
-        logging.info(
-            "bet_report already exists for bet_id=%s, combination=%s (report_id=%s) – reusing",
-            bet_id,
-            combination,
-            report_id,
-        )
-        return report_id
-
-    # 2) Otherwise, insert a new record
-    logging.info(
-        "Inserting bet_report for bet_id=%s, combination=%s",
-        bet_id,
-        combination,
+    if row:
+        return row[0]
+    
+    # Retrieve existing ID
+    cur.execute(
+        "SELECT bet_id FROM race_bet WHERE race_id = %s AND bet_type = %s",
+        (race_id, bet.get("typePari"))
     )
+    res = cur.fetchone()
+    return res[0] if res else None
 
+def insert_bet_report(cur, bet_id, r):
+    """Insert bet_report if not exists."""
+    if not bet_id: return
+    
     cur.execute(
         """
-        INSERT INTO bet_report (
-            bet_id,
-            combination,
-            dividend,
-            dividend_per_1e,
-            winners_count
-        )
+        INSERT INTO bet_report (bet_id, combination, dividend, dividend_per_1e, winners_count)
         VALUES (%s, %s, %s, %s, %s)
-        RETURNING report_id;
+        ON CONFLICT (bet_id, combination) DO NOTHING;
         """,
         (
-            bet_id,
-            combination,
-            dividend,
-            dividend_per_1e,
-            winners_count,
-        ),
+            bet_id, r.get("combinaison"), r.get("dividende"),
+            r.get("dividendePourUnEuro"), r.get("nombreGagnants")
+        )
     )
 
-    report_id = cur.fetchone()[0]
-    return report_id
-
-
-def ingest_rapports_for_date(date: str, meeting: int, race: int) -> None:
-    """
-    Main orchestration function to ingest JSON 4 data for a given date / meeting / race.
-    """
+def ingest_rapports_for_date(date_code):
     logger = logging.getLogger(__name__)
-    logger.info(
-        "Starting rapports ingestion for date=%s R%sC%s",
-        date,
-        meeting,
-        race,
-    )
-
-    bets = fetch_rapports_json(date, meeting, race)
-
-    if not bets:
-        logger.warning("No bets (rapports-definitifs) returned by API")
-        return
+    sql_date = dt.datetime.strptime(date_code, "%d%m%Y").date()
+    logger.info("Starting RAPPORTS ingestion for %s", date_code)
 
     conn = get_db_connection()
     try:
-        # Use a context manager for the connection to ensure transaction handling
         with conn:
-            # Use a context manager for the cursor
-            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-
-                # Recover race ID by joining program, meeting, and race tables
-                sql_date = dt.datetime.strptime(date, "%d%m%Y").date()
-
-                cur.execute(
-                    """
-                    SELECT r.race_id
-                    FROM race r
-                    JOIN race_meeting rm ON rm.meeting_id = r.meeting_id
-                    JOIN daily_program dp ON dp.program_id = rm.program_id
-                    WHERE dp.program_date = %s
-                      AND rm.meeting_number = %s
-                      AND r.race_number = %s;
-                    """,
-                    (sql_date, meeting, race),
-                )
-
-                res = cur.fetchone()
-                if not res:
-                    raise RuntimeError(
-                        f"race_id not found for date={sql_date}, meeting={meeting}, race={race}"
-                    )
-
-                race_id = res["race_id"]
-                logger.info("Found race_id=%s", race_id)
-
-                bet_count = 0
-                report_count = 0
-
-                # Iterate through all bet types (e.g., Simple, Couplé, Trio, Quinté+)
-                for bet in bets:
-                    bet_id = insert_race_bet(cur, race_id, bet)
-                    bet_count += 1
-
-                    # Iterate through the definitive reports (combinations/dividends) for this bet type
-                    rapports = bet.get("rapports", []) or []
-                    for r in rapports:
-                        insert_bet_report(cur, bet_id, r)
-                        report_count += 1
-
-                logger.info(
-                    "Inserted %d bets and %d reports for race_id=%s",
-                    bet_count,
-                    report_count,
-                    race_id,
-                )
-
+            with conn.cursor() as cur:
+                races = get_races_for_date(cur, sql_date)
+                logger.info("Found %d races to process", len(races))
+                
+                for race_id, meeting_num, race_num in races:
+                    bets = fetch_rapports_json(date_code, meeting_num, race_num)
+                    
+                    for bet in bets:
+                        bet_id = insert_race_bet(cur, race_id, bet)
+                        
+                        reports = bet.get("rapports", [])
+                        for r in reports:
+                            insert_bet_report(cur, bet_id, r)
     finally:
-        # Ensure connection is closed even if an exception occurs
         conn.close()
-        logger.info("DB connection closed")
-
-
-def parse_args():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Ingest PMU rapports-definitifs (JSON 4)")
-    parser.add_argument("--date", required=True, help="PMU date code (e.g. 05112025)")
-    parser.add_argument("--meeting", required=True, type=int, help="Meeting number (e.g. 1 for R1)")
-    parser.add_argument("--race", required=True, type=int, help="Race number (e.g. 1 for C1)")
-    return parser.parse_args()
-
 
 if __name__ == "__main__":
     setup_logging()
-    args = parse_args()
-    ingest_rapports_for_date(args.date, args.meeting, args.race)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--date", required=True, help="PMU date code (e.g. 05112025)")
+    args = parser.parse_args()
+    ingest_rapports_for_date(args.date)

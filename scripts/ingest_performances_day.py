@@ -1,30 +1,31 @@
 """
-Ingest horse_race_history from PMU JSON (JSON 3)
-Ensures foreign key consistency with the horse table.
+Ingest PMU detailed performances (JSON 3) for a WHOLE day.
+Scope: Horse -> Horse Race History.
+
+Logic:
+    - Queries DB to find all races for the given date.
+    - Iterates over each race to fetch detailed performances.
+    - Ensures horse exists (creates if not).
+    - Inserts history records into horse_race_history.
+    - Uses ON CONFLICT DO NOTHING.
 
 Usage:
-    python ingest_horse_history.py --date 05112025 --meeting 1 --race 1
+    python scripts/ingest_performances_day.py --date 05112025
 """
 
 import argparse
 import datetime as dt
-import json
 import logging
 import os
-
-
-import psycopg2
-import psycopg2.extras
 import requests
+import psycopg2
 from dotenv import load_dotenv
 
-load_dotenv("../.env")
+load_dotenv()
 
-PERFORMANCE_URL_TEMPLATE = (
+PERF_URL_TEMPLATE = (
     "https://online.turfinfo.api.pmu.fr/rest/client/61/programme/{date}/R{meeting}/C{race}/performances-detaillees/pretty"
 )
-
-missing_horse_counter = 0
 
 def setup_logging():
     logging.basicConfig(
@@ -33,47 +34,45 @@ def setup_logging():
     )
 
 def get_db_connection():
-    db_url = os.getenv("DB_URL")
-    if not db_url:
-        raise RuntimeError("DB_URL environment variable is not set")
-    return psycopg2.connect(db_url)
+    return psycopg2.connect(os.getenv("DB_URL"))
 
-def fetch_performance_json(date: str):
-    url = PERFORMANCE_URL_TEMPLATE.format(date=date)
-    logging.info("Fetching performance JSON from %s", url)
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+def get_races_for_date(cur, sql_date):
+    """Retrieve (meeting_number, race_number) for a SQL date."""
+    cur.execute(
+        """
+        SELECT rm.meeting_number, r.race_number
+        FROM race r
+        JOIN race_meeting rm ON r.meeting_id = rm.meeting_id
+        JOIN daily_program dp ON rm.program_id = dp.program_id
+        WHERE dp.program_date = %s
+        ORDER BY rm.meeting_number, r.race_number;
+        """,
+        (sql_date,)
+    )
+    return cur.fetchall()
 
-def safe_get(obj, path, default=None):
-    keys = path.split(".")
-    cur = obj
-    for k in keys:
-        if not isinstance(cur, dict):
-            return default
-        cur = cur.get(k, default)
-    return cur
-
-def safe_int(value, default=None):
+def fetch_perf_json(date_code, meeting, race):
+    url = PERF_URL_TEMPLATE.format(date=date_code, meeting=meeting, race=race)
     try:
-        return int(value) if value is not None else default
-    except (ValueError, TypeError):
-        return default
-
-def safe_float(value, default=None):
-    try:
-        return float(value) if value is not None else default
-    except (ValueError, TypeError):
-        return default
+        resp = requests.get(url, timeout=15)
+        if resp.status_code == 404:
+            return {}
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        logging.error("Failed to fetch performances for %s: %s", url, e)
+        return {}
 
 def get_or_create_horse(cur, horse_name):
-    """Ensure the horse exists in the horse table and return horse_id."""
-    global missing_horse_counter
+    """Get horse_id, creating it if necessary."""
     if not horse_name:
-        missing_horse_counter += 1
-        horse_name = f"Unknown_{missing_horse_counter}"
-        logging.warning("Horse name missing. Using placeholder: %s", horse_name)
-
+        return None
+    
+    cur.execute("SELECT horse_id FROM horse WHERE horse_name = %s", (horse_name,))
+    row = cur.fetchone()
+    if row:
+        return row[0]
+    
     cur.execute(
         "INSERT INTO horse (horse_name) VALUES (%s) ON CONFLICT (horse_name) DO NOTHING RETURNING horse_id",
         (horse_name,)
@@ -81,81 +80,100 @@ def get_or_create_horse(cur, horse_name):
     row = cur.fetchone()
     if row:
         return row[0]
+    
+    # Retry fetch if race condition occurred
+    cur.execute("SELECT horse_id FROM horse WHERE horse_name = %s", (horse_name,))
+    row = cur.fetchone()
+    return row[0] if row else None
 
-    # Fetch existing horse_id
-    cur.execute("SELECT horse_id FROM horse WHERE horse_name=%s", (horse_name,))
-    return cur.fetchone()[0]
+def insert_history(cur, horse_id, c):
+    """Insert a single history line."""
+    if not horse_id: return
 
-def insert_horse_race_history(cur, horse_id, course_json):
-    participants = course_json.get("participants", [])
-    course_date_ts = course_json.get("date")
-    course_date = dt.datetime.fromtimestamp(course_date_ts / 1000, dt.timezone.utc).date() if course_date_ts else None
+    # Parse date
+    race_date = None
+    if c.get("date"):
+        race_date = dt.datetime.utcfromtimestamp(c["date"] / 1000).date()
+    
+    # Parse participant info inside the history
+    # The JSON structure implies 'participants' list inside a 'courseCourue'
+    # We look for 'itsHim': true to find the subject horse
+    subject = next((p for p in c.get("participants", []) if p.get("itsHim")), None)
+    
+    finish_place = None
+    finish_status = None
+    jockey_weight = None
+    draw = None
+    red_km = None
+    dist_travel = None
+    
+    if subject:
+        # Check structure: subject['place'] is usually a dict { 'place': X, 'statusArrivee': ... }
+        place_obj = subject.get("place")
+        if isinstance(place_obj, dict):
+            finish_place = place_obj.get("place")
+            finish_status = place_obj.get("statusArrivee")
+        
+        jockey_weight = subject.get("poidsJockey")
+        draw = subject.get("corde")
+        red_km = subject.get("reductionKilometrique")
+        dist_travel = subject.get("distanceParcourue")
 
-    discipline = course_json.get("discipline")
-    prize_money = safe_float(course_json.get("allocation"))
-    distance_m = safe_int(course_json.get("distance"))
-    first_place_time_s = safe_int(course_json.get("tempsDuPremier"))
-
-    for hp in participants:
-        finish_place = safe_int(safe_get(hp, "place.place"))
-        finish_status = safe_get(hp, "place.statusArrivee")
-        jockey_weight = safe_float(hp.get("poidsJockey"))
-        draw_number = safe_int(hp.get("corde"))
-        reduction_km = safe_float(hp.get("reductionKilometrique"))
-        distance_traveled_m = safe_int(hp.get("distanceParcourue"))
-
-        cur.execute(
-            """
-            INSERT INTO horse_race_history (
-                horse_id, race_date, discipline, distance_m,
-                prize_money, first_place_time_s,
-                finish_place, finish_status,
-                jockey_weight, draw_number,
-                reduction_km, distance_traveled_m
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT (horse_id, race_date, discipline, distance_m)
-            DO NOTHING
-            """,
-            (
-                horse_id, course_date, discipline, distance_m,
-                prize_money, first_place_time_s,
-                finish_place, finish_status,
-                jockey_weight, draw_number,
-                reduction_km, distance_traveled_m
-            )
+    cur.execute(
+        """
+        INSERT INTO horse_race_history (
+            horse_id, race_date, discipline, distance_m,
+            prize_money, first_place_time_s,
+            finish_place, finish_status, jockey_weight,
+            draw_number, reduction_km, distance_traveled_m
         )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (horse_id, race_date, discipline, distance_m) DO NOTHING;
+        """,
+        (
+            horse_id, race_date, c.get("discipline"), c.get("distance"),
+            c.get("allocation"), c.get("tempsDuPremier"),
+            finish_place, finish_status, jockey_weight,
+            draw, red_km, dist_travel
+        )
+    )
 
-def ingest_horse_race_history_for_date(date: str):
+def ingest_performances_for_date(date_code):
     logger = logging.getLogger(__name__)
-    logger.info("Starting ingestion of horse_race_history for date_code=%s", date)
+    sql_date = dt.datetime.strptime(date_code, "%d%m%Y").date()
+    logger.info("Starting PERFORMANCES ingestion for %s", date_code)
 
-    data = fetch_performance_json(date)
     conn = get_db_connection()
-
     try:
         with conn:
             with conn.cursor() as cur:
-                participants_json = data.get("participants", [])
-                logger.info("Found %d participants", len(participants_json))
+                races = get_races_for_date(cur, sql_date)
+                logger.info("Found %d races to scan for history", len(races))
 
-                for p in participants_json:
-                    horse_name = p.get("nomCheval") or p.get("nom")
-                    horse_id = get_or_create_horse(cur, horse_name)
+                for meeting_num, race_num in races:
+                    data = fetch_perf_json(date_code, meeting_num, race_num)
+                    
+                    # Some endpoints return list directly, some dict with 'participants'
+                    participants = []
+                    if isinstance(data, dict):
+                        participants = data.get("participants", [])
+                    elif isinstance(data, list):
+                        participants = data
 
-                    courses = p.get("coursesCourues", [])
-                    for course_json in courses:
-                        insert_horse_race_history(cur, horse_id, course_json)
-
+                    for p in participants:
+                        horse_name = p.get("nomCheval") or p.get("nom")
+                        horse_id = get_or_create_horse(cur, horse_name)
+                        
+                        history_list = p.get("coursesCourues", [])
+                        for h in history_list:
+                            insert_history(cur, horse_id, h)
+                            
     finally:
         conn.close()
-        logger.info("Database connection closed")
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Ingest horse_race_history from PMU JSON for a given date.")
-    parser.add_argument("--date", required=True, help="PMU date code (e.g., 05112025)")
-    return parser.parse_args()
 
 if __name__ == "__main__":
     setup_logging()
-    args = parse_args()
-    ingest_horse_race_history_for_date(args.date)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--date", required=True, help="PMU date code (e.g. 05112025)")
+    args = parser.parse_args()
+    ingest_performances_for_date(args.date)

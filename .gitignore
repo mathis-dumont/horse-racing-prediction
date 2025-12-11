@@ -8,6 +8,7 @@ __pycache__/
 *.pdb
 *.tmp
 *.log
+*.ipynb
 
 # Virtual environments
 .env

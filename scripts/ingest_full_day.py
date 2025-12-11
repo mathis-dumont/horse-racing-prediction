@@ -1,143 +1,122 @@
 """
-Master ingestion script for a full PMU day.
-Fetches all meetings and races, then runs all ingestion steps.
+Ingest all data for a specific day (Programme, Participants, Performances, Rapports).
+This script orchestrates the execution of the individual ingestion scripts in the correct order.
+
+Order of execution:
+1. Programme (JSON 1)     -> Creates DailyProgram, Meetings, Races.
+2. Participants (JSON 2)  -> Creates Horses, RaceParticipants.
+3. Performances (JSON 3)  -> Creates HorseRaceHistory.
+4. Rapports (JSON 4)      -> Creates RaceBets, BetReports.
 
 Usage:
-    python ingest_full_day.py --date 05112025
+    python scripts/ingest_full_day.py --date 05112025
 """
 
 import argparse
 import logging
-import requests
-from typing import Dict, List
+import time
+import sys
+import os
 
-# Import all ingestion functions
-from ingest_programme_day import ingest_programme_for_date
-from ingest_participants_day import ingest_participants_for_date
-from ingest_rapports_day import ingest_rapports_for_date
-from ingest_performances_day import ingest_horse_race_history_for_date
+# Path Setup
+# Ensure we can import sibling scripts whether running from root or scripts/ dir
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(current_dir)
 
-PROGRAMME_DAY_URL = (
-    "https://online.turfinfo.api.pmu.fr/rest/client/61/programme/{date}"
-)
-
-
-# --------------------------------------------
-# LOGGING
-# --------------------------------------------------------
+try:
+    from ingest_programme_day import ingest_programme_for_date
+    from ingest_participants_day import ingest_participants_for_date
+    from ingest_performances_day import ingest_performances_for_date
+    from ingest_rapports_day import ingest_rapports_for_date
+except ImportError as e:
+    print(f"CRITICAL ERROR: Could not import ingestion modules. Details: {e}")
+    sys.exit(1)
 
 def setup_logging():
+    """Configure logging for the full orchestration script."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
 
-
-# ---------------------------------------------------------
-# Fetch meeting and race list
-# ---------------------------------------------------------
-
-def get_meetings_and_races(date: str) -> Dict[int, List[int]]:
+def process_full_day(date_code: str):
     """
-    Fetch PMU programme of the day and return:
-       { meeting_id: [race_id1, race_id2, ...] }
+    Run the full ingestion pipeline for the given date.
     """
+    logger = logging.getLogger("FullIngest")
+    start_time = time.time()
+    
+    logger.info("===================================================")
+    logger.info("STARTING FULL INGESTION FOR DATE: %s", date_code)
+    logger.info("===================================================")
 
-    url = PROGRAMME_DAY_URL.format(date=date)
-    logging.info("Fetching programme of the day: %s", url)
+    # STEP 1: PROGRAMME (JSON 1)
+    # Critical: Creates the race structure (Foreign Keys for everything else).
 
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-
-    meetings = {}
-
-    # Correct node in your JSON:
-    # data["programme"]["reunions"]
-    programme = data.get("programme", {})
-    reunions = programme.get("reunions", [])
-
-    for r in reunions:
-        meeting_id = (
-            r.get("numOfficiel")
-            or r.get("numExterne")
-            or r.get("numReunion")
-        )
-
-        if meeting_id is None:
-            continue
-
-        courses = r.get("courses", [])
-
-        race_ids = [
-            c.get("numOrdre")
-            for c in courses
-            if c.get("numOrdre") is not None
-        ]
-
-        meetings[meeting_id] = race_ids
-
-    return meetings
-
-
-# ---------------------------------------------------------
-# FULL INGESTION LOGIC
-# ---------------------------------------------------------
-
-def ingest_full_day(date: str):
-    logger = logging.getLogger("ingest_full_day")
-    logger.info("Starting FULL ingestion for date %s", date)
-
-    # Get program of the day
-    # --- Ingestion Step 1: Programme (JSON 1)
     try:
-        ingest_programme_for_date(date)
+        logger.info(">>> STEP 1/4: Ingesting Programme...")
+        ingest_programme_for_date(date_code)
+        logger.info(">>> STEP 1/4: Success.")
     except Exception as e:
-        logger.error("Failed to ingest programme for %s: %s", date, e)
-        return
-    # Get full day structure
-    meetings = get_meetings_and_races(date)
-    logger.info("Found %d meetings for the day", len(meetings))
+        logger.error("!!! STEP 1 FAILED: Programme ingestion aborted. Stopping pipeline.")
+        logger.error(e)
+        sys.exit(1)
 
-    # Iterate over meetings & races
-    for meeting_id, races in meetings.items():
-        logger.info("Processing meeting %s with %d races", meeting_id, len(races))
+    # STEP 2: PARTICIPANTS (JSON 2)
+    # Populates Horse and RaceParticipant tables.
 
-        for race_id in races:
-            logger.info("Processing Race R%sC%s", meeting_id, race_id)
+    try:
+        logger.info(">>> STEP 2/4: Ingesting Participants...")
+        ingest_participants_for_date(date_code)
+        logger.info(">>> STEP 2/4: Success.")
+    except Exception as e:
+        logger.error("!!! STEP 2 FAILED: Participants ingestion aborted.")
+        logger.error(e)
+        # We can optionally continue or stop here. Usually better to stop.
+        sys.exit(1)
 
-            try:
-                # --- Ingestion Step 2: Participants (JSON 2)
-                ingest_participants_for_date(date, meeting_id, race_id)
+    # STEP 3: PERFORMANCES (JSON 3)
+    # Longest step: fetches history for every horse in every race.
 
-                # --- Ingestion Step 3: Rapports (JSON 5)
-                ingest_rapports_for_date(date, meeting_id, race_id)
+    try:
+        logger.info(">>> STEP 3/4: Ingesting Performances (History)...")
+        ingest_performances_for_date(date_code)
+        logger.info(">>> STEP 3/4: Success.")
+    except Exception as e:
+        logger.error("!!! STEP 3 FAILED: Performances ingestion aborted.")
+        logger.error(e)
+        # Not critical for the race result itself, but critical for ML features.
+        
+    # STEP 4: RAPPORTS (JSON 4)
+    # Final betting results.
 
-                # --- Ingestion Step 4: Horse history (JSON 3)
-                ingest_horse_race_history_for_date(date, meeting_id, race_id)
+    try:
+        logger.info(">>> STEP 4/4: Ingesting Rapports (Bets)...")
+        ingest_rapports_for_date(date_code)
+        logger.info(">>> STEP 4/4: Success.")
+    except Exception as e:
+        logger.error("!!! STEP 4 FAILED: Rapports ingestion aborted.")
+        logger.error(e)
 
-                logger.info("Completed R%sC%s", meeting_id, race_id)
+    # SUMMARY
 
-            except Exception as e:
-                logger.error(
-                    "  Error during ingestion for R%sC%s: %s",
-                    meeting_id, race_id, str(e)
-                )
-                # Continue with next race
-                continue
-
-    logger.info("FULL DAY INGESTION COMPLETED for date %s", date)
-
-
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Run full-day ingestion for a PMU date.")
-    parser.add_argument("--date", required=True, help="PMU date code (e.g., 05112025)")
-    return parser.parse_args()
-
+    elapsed_time = time.time() - start_time
+    logger.info("===================================================")
+    logger.info("FULL INGESTION COMPLETED FOR DATE: %s", date_code)
+    logger.info("Total execution time: %.2f seconds", elapsed_time)
+    logger.info("===================================================")
 
 if __name__ == "__main__":
     setup_logging()
-    args = parse_args()
-    ingest_full_day(args.date)
+    
+    parser = argparse.ArgumentParser(
+        description="Orchestrator: Ingest Programme, Participants, Performances, and Rapports for a full day."
+    )
+    parser.add_argument(
+        "--date", 
+        required=True, 
+        help="PMU date code (e.g., 05112025)"
+    )
+    
+    args = parser.parse_args()
+    process_full_day(args.date)

@@ -23,7 +23,8 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=".env")
 
 RAPPORTS_URL_TEMPLATE = (
-    "https://online.turfinfo.api.pmu.fr/rest/client/1/programme/{date}/R{meeting}/C{race}/rapports-definitifs"
+    "https://online.turfinfo.api.pmu.fr/rest/client/1/"
+    "programme/{date}/R{meeting}/C{race}/rapports-definitifs"
 )
 
 
@@ -49,7 +50,10 @@ def get_db_connection():
 
 
 def safe_get(obj, path, default=None):
-
+    """
+    Récupère une valeur dans un dict imbriqué avec une notation 'a.b.c'.
+    Retourne default si une des clés manque.
+    """
     keys = path.split(".")
     cur = obj
     for k in keys:
@@ -87,12 +91,40 @@ def fetch_rapports_json(date: str, meeting: int, race: int):
 
 
 def insert_race_bet(cur, race_id: int, bet: dict) -> int:
-
+    """
+    Insère (ou réutilise) une ligne dans race_bet pour cette course et ce type de pari.
+    Si le pari existe déjà pour cette course, on le réutilise pour éviter les doublons.
+    """
     bet_type = bet.get("typePari")
     bet_family = bet.get("famillePari")
     base_stake = bet.get("miseBase")
     is_refunded = bet.get("rembourse")
 
+    # 1) Vérifier si ce pari existe déjà pour cette course
+    cur.execute(
+        """
+        SELECT bet_id
+        FROM race_bet
+        WHERE race_id = %s
+          AND bet_type = %s
+          AND bet_family = %s
+          AND base_stake = %s
+          AND is_refunded = %s;
+        """,
+        (race_id, bet_type, bet_family, base_stake, is_refunded),
+    )
+    row = cur.fetchone()
+    if row is not None:
+        bet_id = row[0]
+        logging.info(
+            "race_bet already exists for race_id=%s, bet_type=%s (bet_id=%s) – reusing",
+            race_id,
+            bet_type,
+            bet_id,
+        )
+        return bet_id
+
+    # 2) Sinon on insère
     logging.info(
         "Inserting race_bet for race_id=%s, bet_type=%s",
         race_id,
@@ -119,12 +151,37 @@ def insert_race_bet(cur, race_id: int, bet: dict) -> int:
 
 
 def insert_bet_report(cur, bet_id: int, report: dict) -> int:
-    
+    """
+    Insère (ou réutilise) une ligne dans bet_report pour cette combinaison gagnante.
+    Si la combinaison existe déjà pour ce bet_id, on la réutilise pour éviter les doublons.
+    """
     combination = report.get("combinaison")
     dividend = report.get("dividende")
     dividend_per_1e = report.get("dividendePourUnEuro")
     winners_count = report.get("nombreGagnants")
 
+    # 1) Vérifier si ce rapport existe déjà
+    cur.execute(
+        """
+        SELECT report_id
+        FROM bet_report
+        WHERE bet_id = %s
+          AND combination = %s;
+        """,
+        (bet_id, combination),
+    )
+    row = cur.fetchone()
+    if row is not None:
+        report_id = row[0]
+        logging.info(
+            "bet_report already exists for bet_id=%s, combination=%s (report_id=%s) – reusing",
+            bet_id,
+            combination,
+            report_id,
+        )
+        return report_id
+
+    # 2) Sinon on insère
     logging.info(
         "Inserting bet_report for bet_id=%s, combination=%s",
         bet_id,
@@ -157,7 +214,9 @@ def insert_bet_report(cur, bet_id: int, report: dict) -> int:
 
 
 def ingest_rapports_for_date(date: str, meeting: int, race: int) -> None:
-   
+    """
+    Orchestration principale pour ingérer JSON 4 pour une date / réunion / course.
+    """
     logger = logging.getLogger(__name__)
     logger.info(
         "Starting rapports ingestion for date=%s R%sC%s",

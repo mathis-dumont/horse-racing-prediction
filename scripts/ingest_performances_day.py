@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 import time
+import random
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Tuple, Any
@@ -31,7 +32,6 @@ PERF_URL_TEMPLATE = (
     "https://online.turfinfo.api.pmu.fr/rest/client/61/programme/{date}/R{meeting}/C{race}/performances-detaillees/pretty"
 )
 MAX_WORKERS = 12        # Adjust based on DB connection limits
-REQUEST_DELAY = 0.050   # 50ms throttling
 
 # --- Thread-Safe Globals ---
 # Shared cache for Horse IDs to reduce DB SELECTs
@@ -228,7 +228,7 @@ def process_single_race(date_code: str, meeting_num: int, race_num: int) -> int:
     5. Closes connection.
     """
     # Throttling to respect API rate limits
-    time.sleep(REQUEST_DELAY)
+    time.sleep(random.uniform(0.1, 0.3))
 
     # 1. Fetch Data
     data = fetch_perf_json(date_code, meeting_num, race_num)
@@ -317,7 +317,7 @@ def ingest_performances_for_date(date_code: str):
 
     logger.info("==================================================")
     logger.info("Starting PARALLEL PERFORMANCE Ingestion for: %s", date_code)
-    logger.info("Max Workers: %d | Delay: %ss", MAX_WORKERS, REQUEST_DELAY)
+    logger.info("Max Workers: %d", MAX_WORKERS)
     logger.info("==================================================")
 
     # 1. Get Race List

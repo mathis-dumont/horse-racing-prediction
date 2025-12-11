@@ -15,6 +15,7 @@ import requests
 import psycopg2
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import random
 
 load_dotenv()
 
@@ -23,7 +24,6 @@ PARTICIPANTS_URL_TEMPLATE = (
     "https://online.turfinfo.api.pmu.fr/rest/client/61/programme/{date}/R{meeting}/C{race}/participants"
 )
 MAX_WORKERS = 12
-REQUEST_DELAY = 0.050  # 50ms
 
 def setup_logging():
     logging.basicConfig(
@@ -129,7 +129,7 @@ def insert_participant(cur, race_id, horse_id, p):
 
 def process_single_race_participants(date_code, race_id, meeting_num, race_num):
     """Worker: Handle one race's participants."""
-    time.sleep(REQUEST_DELAY) # Throttling
+    time.sleep(random.uniform(0.1, 0.3)) # Throttling
 
     participants = fetch_participants_json(date_code, meeting_num, race_num)
     if not participants:

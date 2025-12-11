@@ -1,64 +1,69 @@
-# Documentation des Scripts d'Ingestion (ETL)
+# Documentation Technique : Pipeline d'Ingestion de Données (ETL)
 
-Ce document décrit le fonctionnement des scripts Python situés dans le dossier `scripts/`. Ces scripts constituent le pipeline ETL (Extract, Transform, Load) qui alimente la base de données PostgreSQL à partir de l'API du PMU.
+Ce document détaille l'architecture, le fonctionnement et les choix techniques des scripts d'ingestion (ETL) situés dans le répertoire `scripts/`. Ce pipeline a pour objectif d'alimenter une base de données PostgreSQL distante à partir de l'API publique du PMU.
 
-## 1. Principes Généraux
+## 1. Principes d'Architecture
 
-*   **Idempotence** : Tous les scripts sont conçus pour être relancés plusieurs fois sans risque. Ils utilisent la clause SQL `ON CONFLICT DO NOTHING` pour éviter les doublons.
-*   **Mode "Stealth" (Anti-Ban)** : Pour éviter le blocage par l'API (Erreurs 403), tous les scripts simulent un navigateur réel en injectant des en-têtes HTTP spécifiques (`User-Agent`, `Referer`).
-*   **Parallélisme Contrôlé** : Les scripts lourds (Participants, Performances, Rapports) utilisent le **Multithreading** (`ThreadPoolExecutor`) pour traiter plusieurs courses simultanément, tout en respectant une limite de workers et un délai (throttling) pour ne pas surcharger le serveur distant.
-*   **Logique "Database-First"** : À l'exception du premier script (Programme), tous les autres interrogent d'abord la base de données pour connaître les courses à traiter.
-*   **Gestion des Courses Étrangères** : Le pipeline gère nativement les réponses HTTP 204 (No Content), fréquentes pour les courses internationales sans historique détaillé.
+L'architecture du projet repose sur quatre piliers fondamentaux pour garantir robustesse, performance et discrétion :
+
+*   **Idempotence & Intégrité** : Les scripts sont conçus pour être exécutés plusieurs fois sans altérer l'intégrité des données. L'utilisation systématique de la clause SQL `ON CONFLICT DO NOTHING` prévient la création de doublons.
+*   **Simulation de Trafic (Stealth Mode)** : Afin de contourner les limitations d'accès (Rate Limiting / WAF), chaque requête HTTP injecte des en-têtes imitant un navigateur réel (`User-Agent`, `Referer`). De plus, une temporisation aléatoire (`random.uniform`) est appliquée pour éviter les signatures temporelles robotiques.
+*   **Parallélisme Contrôlé** : L'ingestion massive utilise le multithreading (`ThreadPoolExecutor`). Cela permet de traiter plusieurs courses simultanément tout en limitant le nombre de connexions concurrentes (`MAX_WORKERS`) pour ne pas saturer l'API source ou le pool de connexions de la base de données.
+*   **Optimisation Réseau (Batch Processing)** : Face à une base de données distante, la latence réseau (Network Round-Trip) est le facteur limitant principal. Les scripts traitant de gros volumes de données regroupent les insertions (Bulk Inserts) pour minimiser les allers-retours.
 
 ---
 
-## 2. Détail des Scripts
+## 2. Détail des Modules ETL
 
-L'ordre d'exécution est strict car les tables sont liées par des clés étrangères.
+L'exécution des scripts doit respecter un ordre séquentiel strict pour satisfaire les contraintes de clés étrangères (Foreign Keys) de la base de données.
 
-### Étape 1 : `ingest_programme_day.py` (Architecture)
-Ce script est la fondation. Il doit impérativement être exécuté en premier.
+### Étape 1 : Architecture de la Journée (`ingest_programme_day.py`)
+*Ce script est le point d'entrée obligatoire du pipeline.*
 
 *   **Source** : API PMU (JSON 1 - Programme).
-*   **Mode** : Séquentiel (une seule requête par jour).
-*   **Rôle** : Crée l'arborescence de la journée.
-*   **Tables impactées** : `daily_program`, `race_meeting`, `race`.
+*   **Mode d'exécution** : Séquentiel (Single-thread).
+*   **Fonction** : Il établit le squelette relationnel de la journée (Réunions → Courses). Il ne récupère que les métadonnées structurelles.
+*   **Tables cibles** : `daily_program`, `race_meeting`, `race`.
 *   **Commande** :
     ```bash
     python scripts/ingest_programme_day.py --date 05112025
     ```
 
-### Étape 2 : `ingest_participants_day.py` (Acteurs)
+### Étape 2 : Acteurs de la Course (`ingest_participants_day.py`)
 *   **Source** : API PMU (JSON 2 - Participants).
-*   **Mode** : Parallèle (Multithreadé).
-*   **Rôle** : Récupère la liste des partants pour chaque course existante en base.
-*   **Tables impactées** : `horse`, `race_participant`.
+*   **Mode d'exécution** : Parallèle (Multithreading).
+*   **Fonction** : Récupère la liste des partants pour toutes les courses initialisées à l'étape 1.
+*   **Tables cibles** : `horse`, `race_participant`.
 *   **Commande** :
     ```bash
     python scripts/ingest_participants_day.py --date 05112025
     ```
 
-### Étape 3 : `ingest_performances_day.py` (Historique - Big Data)
-C'est le script le plus complexe et le plus optimisé. Il récupère l'historique de carrière (musique) de chaque cheval.
+### Étape 3 : Historique et Performances (`ingest_performances_day.py`)
+*Module critique à forte volumétrie.*
+
+Ce script est le plus complexe du pipeline car il gère le "Big Data" hippique (l'historique complet de chaque cheval).
 
 *   **Source** : API PMU (JSON 3 - Performances Détaillées).
-*   **Mode** : Hybride (Parallèle + Batch Insert).
-*   **Optimisations Techniques** :
-    1.  **ThreadPoolExecutor** : Traite ~10 à 12 courses en parallèle.
-    2.  **Thread-Safe Caching** : Utilise un `threading.Lock` pour gérer un cache local des IDs de chevaux (`HORSE_CACHE`) partagé entre les threads, réduisant drastiquement les lectures en base.
-    3.  **Batch par Course** : Les performances de tous les chevaux d'une même course sont insérées en une seule transaction SQL (`execute_values`).
-    4.  **Gestion HTTP 204** : Ignore silencieusement (avec log INFO) les courses sans historique (fréquent sur les réunions R7, R8...).
-*   **Tables impactées** : `horse`, `horse_race_history`.
+*   **Mode d'exécution** : Hybride (Parallèle + **Batch Insert**).
+*   **Problématique Technique** :
+    L'historique des performances génère une quantité exponentielle de données. Une seule course de 16 partants, où chaque cheval possède un historique de 50 courses, représente **800 enregistrements** à insérer.
+    Dans un contexte de base de données distante (Cloud/Remote), une insertion ligne par ligne (row-by-row) provoquerait un goulot d'étranglement majeur dû à la latence réseau (800 allers-retours TCP pour une seule course).
+*   **Solution Implémentée** :
+    1.  **Agrégation en Mémoire** : Le worker récupère et transforme toutes les données d'une course en mémoire.
+    2.  **Insertion par Lot (Batch)** : Utilisation de `psycopg2.extras.execute_values` pour envoyer l'intégralité des données d'une course en **une seule transaction SQL**. Cela divise le temps de traitement par un facteur 100 à 1000 selon la latence.
+    3.  **Thread-Safe Caching** : Un cache local (`HORSE_CACHE`) partagé entre les threads (sécurisé par `threading.Lock`) évite de re-interroger la base pour des IDs de chevaux déjà connus.
+*   **Tables cibles** : `horse`, `horse_race_history`.
 *   **Commande** :
     ```bash
     python scripts/ingest_performances_day.py --date 05112025
     ```
 
-### Étape 4 : `ingest_rapports_day.py` (Résultats)
+### Étape 4 : Résultats et Rapports (`ingest_rapports_day.py`)
 *   **Source** : API PMU (JSON 4 - Rapports Définitifs).
-*   **Mode** : Parallèle (Multithreadé).
-*   **Rôle** : Récupère les résultats des paris pour calculer la cible (Target).
-*   **Tables impactées** : `race_bet`, `bet_report`.
+*   **Mode d'exécution** : Parallèle (Multithreading).
+*   **Fonction** : Récupère les rapports de gains (Cotes, Gagnants, Placés) nécessaires au calcul des cibles (Target) pour le Machine Learning.
+*   **Tables cibles** : `race_bet`, `bet_report`.
 *   **Commande** :
     ```bash
     python scripts/ingest_rapports_day.py --date 05112025
@@ -66,43 +71,47 @@ C'est le script le plus complexe et le plus optimisé. Il récupère l'historiqu
 
 ---
 
-## 3. Orchestration
+## 3. Orchestration et Automatisation
 
-Pour simplifier l'utilisation quotidienne, deux scripts "pilotes" sont disponibles.
+Pour faciliter l'exploitation quotidienne et la reprise d'historique (Backfilling), deux scripts d'orchestration sont disponibles.
 
-### A. Ingestion d'une journée complète : `ingest_full_day.py`
-Orchestre l'exécution séquentielle des 4 scripts. Gère les dépendances et arrête le processus en cas d'erreur critique sur le programme.
+### A. Ingestion Quotidienne : `ingest_full_day.py`
+Ce script pilote exécute séquentiellement les modules 1 à 4 pour une date donnée. Il gère la propagation des erreurs : si le programme (Étape 1) échoue, le processus s'arrête immédiatement.
 
-**Usage recommandé au quotidien :**
+**Usage standard :**
 ```bash
 python scripts/ingest_full_day.py --date 05112025
 ```
 
-### B. Ingestion d'une période (Backfill) : `ingest_range.py`
-Permet de rattraper l'historique sur une plage de dates.
+### B. Reprise d'Historique : `ingest_range.py`
+Permet l'ingestion massive sur une plage de dates. Il itère sur chaque jour et appelle `ingest_full_day.py`.
 
-**Usage pour l'historique :**
+**Usage Backfill :**
 ```bash
 python scripts/ingest_range.py --start 01112025 --end 30112025
 ```
 
 ---
 
-## 4. Dépannage Rapide
+## 4. Guide de Dépannage (Troubleshooting)
 
-| Symptôme | Cause Probable | Solution |
+| Code / Erreur | Cause Probable | Action Recommandée |
 | :--- | :--- | :--- |
-| **Erreur 403 (Forbidden)** | Détection de Bot | Les headers `User-Agent` ne sont pas à jour ou le script tourne trop vite. Réduire `MAX_WORKERS` ou augmenter `REQUEST_DELAY`. |
-| **"Found 0 races"** | Programme manquant | Vérifier que `ingest_programme_day.py` a bien tourné pour cette date. |
-| **Logs "HTTP 204"** | Course étrangère/vide | **Comportement normal**. Le script ignore les courses sans données JSON (souvent R8, R9, etc.). |
-| **Erreur SSL/Connection** | Instabilité réseau | Le script gère les retries basiques, mais une coupure internet stoppera le thread. Relancer le script (il est idempotent). |
+| **HTTP 403 (Forbidden)** | Détection de bot par l'API. | Vérifier les headers `User-Agent`. Augmenter la temporisation (`random.uniform(0.5, 1.0)`). |
+| **HTTP 204 (No Content)** | Course étrangère ou annulée. | **Comportement normal**. Le script ignore logiquement les courses sans données JSON (fréquent sur R7/R8). |
+| **"Found 0 races"** | Désynchronisation du pipeline. | Le script `ingest_programme_day.py` n'a pas été exécuté ou a échoué pour cette date. Le relancer. |
+| **TimeoutError / SSL** | Instabilité de la connexion réseau. | Relancer le script. Grâce à l'idempotence, il reprendra le travail sans dupliquer les données. |
 
----
+## 5. Configuration de Performance
 
-## 5. Configuration Recommandée (Performance vs Sécurité)
+Les paramètres suivants peuvent être ajustés dans les en-têtes des scripts Python (`MAX_WORKERS`, `time.sleep`) selon la capacité de la machine hôte et de la base de données.
 
-Pour modifier la vitesse d'ingestion, ajustez les constantes en haut des scripts Python :
+*   **Profil "Production" (Recommandé)** :
+    *   `MAX_WORKERS = 12`
+    *   `sleep = random.uniform(0.1, 0.3)`
+    *   *Compromis idéal entre vitesse d'ingestion et discrétion.*
 
-*   **Standard (Sûr)** : `MAX_WORKERS = 5`, `REQUEST_DELAY = 0.1`
-*   **Rapide (Optimisé)** : `MAX_WORKERS = 12`, `REQUEST_DELAY = 0.05` (Configuration actuelle recommandée).
-*   **Risqué** : `MAX_WORKERS > 20` (Risque élevé de ban IP temporaire).
+*   **Profil "Safe" (En cas de ban IP)** :
+    *   `MAX_WORKERS = 4`
+    *   `sleep = random.uniform(0.5, 1.5)`
+    *   *Très lent, mais indétectable.*

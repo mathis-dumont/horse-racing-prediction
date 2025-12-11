@@ -13,6 +13,7 @@ import requests
 import psycopg2
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import random
 
 load_dotenv()
 
@@ -21,7 +22,6 @@ RAPPORTS_URL_TEMPLATE = (
     "https://online.turfinfo.api.pmu.fr/rest/client/1/programme/{date}/R{meeting}/C{race}/rapports-definitifs"
 )
 MAX_WORKERS = 12 
-REQUEST_DELAY = 0.050
 
 def setup_logging():
     logging.basicConfig(
@@ -112,7 +112,7 @@ def insert_bet_report(cur, bet_id, r):
     )
 
 def process_single_race_reports(date_code, race_id, meeting_num, race_num):
-    time.sleep(REQUEST_DELAY)
+    time.sleep(random.uniform(0.1, 0.3))
     bets = fetch_rapports_json(date_code, meeting_num, race_num)
     if not bets: return 0
 

@@ -1,5 +1,5 @@
 """
-Ingest PMU rapports définitifs (JSON 4)
+Ingest PMU definitive reports (JSON 4)
 for a given date / meeting / race
 into PostgreSQL tables:
 
@@ -20,11 +20,12 @@ import psycopg2.extras
 import requests
 from dotenv import load_dotenv
 
+# Load environment variables from .env file
 load_dotenv(dotenv_path=".env")
 
 RAPPORTS_URL_TEMPLATE = (
-    "https://online.turfinfo.api.pmu.fr/rest/client/1/"
-    "programme/{date}/R{meeting}/C{race}/rapports-definitifs"
+    # URL template for fetching the definitive reports (JSON 4) from the PMU API
+    "https://online.turfinfo.api.pmu.fr/rest/client/1/programme/{date}/R{meeting}/C{race}/rapports-definitifs"
 )
 
 
@@ -51,8 +52,8 @@ def get_db_connection():
 
 def safe_get(obj, path, default=None):
     """
-    Récupère une valeur dans un dict imbriqué avec une notation 'a.b.c'.
-    Retourne default si une des clés manque.
+    Retrieve a value from a nested dictionary using 'a.b.c' dot notation.
+    Returns default if any of the keys is missing along the path.
     """
     keys = path.split(".")
     cur = obj
@@ -79,7 +80,7 @@ def fetch_rapports_json(date: str, meeting: int, race: int):
     resp.raise_for_status()
     data = resp.json()
 
-    # The API directly returns a list
+    # The API might return a list directly or a dictionary containing the list
     if isinstance(data, list):
         bets = data
     elif isinstance(data, dict):
@@ -92,15 +93,16 @@ def fetch_rapports_json(date: str, meeting: int, race: int):
 
 def insert_race_bet(cur, race_id: int, bet: dict) -> int:
     """
-    Insère (ou réutilise) une ligne dans race_bet pour cette course et ce type de pari.
-    Si le pari existe déjà pour cette course, on le réutilise pour éviter les doublons.
+    Inserts (or reuses) a row in race_bet for this race and bet type.
+    If the bet already exists for this race, it is reused to avoid duplicates.
     """
+    # Extract data using key names from the PMU API
     bet_type = bet.get("typePari")
     bet_family = bet.get("famillePari")
     base_stake = bet.get("miseBase")
     is_refunded = bet.get("rembourse")
 
-    # 1) Vérifier si ce pari existe déjà pour cette course
+    # 1) Check if this bet already exists for this race
     cur.execute(
         """
         SELECT bet_id
@@ -124,7 +126,7 @@ def insert_race_bet(cur, race_id: int, bet: dict) -> int:
         )
         return bet_id
 
-    # 2) Sinon on insère
+    # 2) Otherwise, insert a new record
     logging.info(
         "Inserting race_bet for race_id=%s, bet_type=%s",
         race_id,
@@ -152,15 +154,16 @@ def insert_race_bet(cur, race_id: int, bet: dict) -> int:
 
 def insert_bet_report(cur, bet_id: int, report: dict) -> int:
     """
-    Insère (ou réutilise) une ligne dans bet_report pour cette combinaison gagnante.
-    Si la combinaison existe déjà pour ce bet_id, on la réutilise pour éviter les doublons.
+    Inserts (or reuses) a row in bet_report for this winning combination.
+    If the combination already exists for this bet_id, it is reused to avoid duplicates.
     """
+    # Extract data using key names from the PMU API
     combination = report.get("combinaison")
     dividend = report.get("dividende")
     dividend_per_1e = report.get("dividendePourUnEuro")
     winners_count = report.get("nombreGagnants")
 
-    # 1) Vérifier si ce rapport existe déjà
+    # 1) Check if this report already exists
     cur.execute(
         """
         SELECT report_id
@@ -181,7 +184,7 @@ def insert_bet_report(cur, bet_id: int, report: dict) -> int:
         )
         return report_id
 
-    # 2) Sinon on insère
+    # 2) Otherwise, insert a new record
     logging.info(
         "Inserting bet_report for bet_id=%s, combination=%s",
         bet_id,
@@ -215,7 +218,7 @@ def insert_bet_report(cur, bet_id: int, report: dict) -> int:
 
 def ingest_rapports_for_date(date: str, meeting: int, race: int) -> None:
     """
-    Orchestration principale pour ingérer JSON 4 pour une date / réunion / course.
+    Main orchestration function to ingest JSON 4 data for a given date / meeting / race.
     """
     logger = logging.getLogger(__name__)
     logger.info(
@@ -233,10 +236,12 @@ def ingest_rapports_for_date(date: str, meeting: int, race: int) -> None:
 
     conn = get_db_connection()
     try:
+        # Use a context manager for the connection to ensure transaction handling
         with conn:
+            # Use a context manager for the cursor
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
 
-                # Recover race ID in the race table
+                # Recover race ID by joining program, meeting, and race tables
                 sql_date = dt.datetime.strptime(date, "%d%m%Y").date()
 
                 cur.execute(
@@ -264,10 +269,12 @@ def ingest_rapports_for_date(date: str, meeting: int, race: int) -> None:
                 bet_count = 0
                 report_count = 0
 
+                # Iterate through all bet types (e.g., Simple, Couplé, Trio, Quinté+)
                 for bet in bets:
                     bet_id = insert_race_bet(cur, race_id, bet)
                     bet_count += 1
 
+                    # Iterate through the definitive reports (combinations/dividends) for this bet type
                     rapports = bet.get("rapports", []) or []
                     for r in rapports:
                         insert_bet_report(cur, bet_id, r)
@@ -281,11 +288,13 @@ def ingest_rapports_for_date(date: str, meeting: int, race: int) -> None:
                 )
 
     finally:
+        # Ensure connection is closed even if an exception occurs
         conn.close()
         logger.info("DB connection closed")
 
 
 def parse_args():
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Ingest PMU rapports-definitifs (JSON 4)")
     parser.add_argument("--date", required=True, help="PMU date code (e.g. 05112025)")
     parser.add_argument("--meeting", required=True, type=int, help="Meeting number (e.g. 1 for R1)")

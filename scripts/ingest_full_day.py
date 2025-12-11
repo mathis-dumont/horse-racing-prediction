@@ -116,7 +116,7 @@ def ingest_full_day(date: str):
                 # --- Ingestion Step 4: Horse history (JSON 3)
                 ingest_horse_race_history_for_date(date, meeting_id, race_id)
 
-                logger.info("  ✔ Completed R%sC%s", meeting_id, race_id)
+                logger.info("Completed R%sC%s", meeting_id, race_id)
 
             except Exception as e:
                 logger.error(

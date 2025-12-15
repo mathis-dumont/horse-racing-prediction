@@ -1,8 +1,29 @@
-numpy
-pandas
-matplotlib
-seaborn
-missingno
-scipy
-scikit-learn
-category-encoders
+# Fichier requirements.txt pour le projet de prédictions hippiques
+
+# Gestion des variables d'environnement (.env)
+# Permet de charger des variables comme les identifiants de base de données
+# à partir d'un fichier .env pour éviter de les coder en dur.
+python-dotenv==1.0.1
+
+# HTTP requests (pour interroger des APIs externes, par exemple pour récupérer des données hippiques)
+# Bibliothèque standard et robuste pour faire des requêtes HTTP.
+requests==2.32.3
+
+# PostgreSQL connection (driver)
+# Adaptateur Python pour se connecter et interagir avec des bases de données PostgreSQL.
+# La version '-binary' inclut les binaires nécessaires pour une installation plus facile.
+psycopg2-binary==2.9.9
+
+# Data utilities (JSON handling, optional pretty-print)
+# Un module JSON ultra-rapide pour Python, utile pour la sérialisation/désérialisation rapide des données JSON.
+# Particulièrement efficace pour de gros volumes de données ou des applications sensibles à la performance.
+ujson==5.10.0
+
+# Used by future scripts and tests (framework de test)
+# Cadre de test populaire et puissant pour Python, utilisé pour écrire et exécuter des tests unitaires et d'intégration.
+pytest==8.3.2
+
+# Logging improvements (optional but recommended for structured logging)
+# Permet de formater les logs Python en JSON, ce qui est idéal pour l'analyse centralisée des logs
+# dans des outils comme ELK Stack, Splunk, ou pour faciliter le traitement machine des logs.
+python-json-logger==2.0.7

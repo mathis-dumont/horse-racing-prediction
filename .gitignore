@@ -70,3 +70,5 @@ htmlcov/
 
 # Supabase CLI cache
 .supabase/
+
+failures/

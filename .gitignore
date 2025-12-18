@@ -72,3 +72,8 @@ htmlcov/
 .supabase/
 
 failures/
+
+#data
+data/
+*.parquet
+*.csv

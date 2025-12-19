@@ -51,7 +51,7 @@ BET_TYPE_MAP = {
     "SUPER_QUATRE": "SUP4"
 }
 
-MAX_WORKERS = 10
+MAX_WORKERS = 5
 FAILURES_DIR = "failures/rapports"
 
 DB_POOL = None

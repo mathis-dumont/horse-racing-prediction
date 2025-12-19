@@ -2,13 +2,16 @@
 Ingest PMU participants (JSON 2) for a WHOLE day.
 Scope: Horse -> Race Participant.
 
-Status: PRODUCTION / OPTIMIZED 
+Status: PRODUCTION / OPTIMIZED
 --------------------------------------------------------------------------------
-- CACHE STRATEGY: Implements "Cache Pre-warming". Loads all Horses/Actors into 
-  Python memory at startup to eliminate DB Read IOPS for existing entities.
-- THREAD SAFETY: Uses Locks for global cache writes.
-- CONNECTION POOLING: Tuned to 6 workers to respect Supabase Session Mode limits.
-- RESILIENCE: Explicit retry logic for DB Deadlocks.
+- CACHE STRATEGY: Implements "Cache Pre-warming". Loads all Horses and Actors 
+  into Python memory (RAM) at startup. This changes entity resolution from 
+  O(N) Database I/O operations to O(1) Memory lookups.
+- THREAD SAFETY: Uses explicit Locks for global cache writes to handle 
+  concurrency during the discovery of new entities.
+- CONNECTION POOLING: Configured for 4 workers to respect Supabase/Postgres 
+  session limits while allowing temporary connections for atomic lookups.
+- RESILIENCE: Implements explicit retry logic with jitter for Database Deadlocks.
 --------------------------------------------------------------------------------
 """
 
@@ -37,10 +40,10 @@ PARTICIPANTS_URL_TEMPLATE = (
 )
 
 # --- WORKER CONFIGURATION ---
-# Reduced to 5 to prevent "MaxClientsInSessionMode" errors on Supabase.
-# Since we now use In-Memory Caching, the bottleneck shifts from DB I/O to CPU,
-# so fewer workers are actually faster and safer.
-MAX_WORKERS = 5
+# Limiting to 4 workers to prevent "MaxClientsInSessionMode" errors on Supabase.
+# Since we use In-Memory Caching, the bottleneck is CPU/Network, not DB I/O,
+# making fewer workers efficiently faster and safer.
+MAX_WORKERS = 4
 FAILURES_DIR = "failures/participants"
 DB_POOL = None
 
@@ -97,17 +100,17 @@ def setup_logging():
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 def init_db_pool():
-    """
-    Initializes a ThreadedConnectionPool.
-    Sizing strategy: Workers + 2 (Safety buffer).
-    Ensures strict mapping between threads and active DB sessions.
-    """
     global DB_POOL
     db_url = os.getenv("DB_URL")
     if not db_url: raise ValueError("DB_URL not set")
-    # Buffer set to +2 to handle transient overhead.
-    DB_POOL = psycopg2.pool.ThreadedConnectionPool(1, MAX_WORKERS + 2, db_url)
-    logger.info("DB Pool Initialized")
+    
+    # CRITICAL: Allocate (MAX_WORKERS * 2) + 2 connections.
+    # Justification: Each worker holds 1 main connection for the transaction.
+    # However, inside the worker, we may request a *temporary* connection 
+    # to resolve/insert a new Horse/Actor immediately without breaking the main transaction.
+    pool_size = (MAX_WORKERS * 2) + 2
+    DB_POOL = psycopg2.pool.ThreadedConnectionPool(1, pool_size, db_url)
+    logger.info(f"DB Pool Initialized with size {pool_size}")
 
 def close_db_pool():
     global DB_POOL
@@ -124,12 +127,13 @@ def release_pooled_connection(conn):
 def preload_caches():
     """
     CRITICAL PERFORMANCE OPTIMIZATION:
-    Loads all Horses and Actors into Python memory (RAM) at startup.
+    Loads the entire 'horse' and 'racing_actor' tables into Python memory (RAM) at startup.
     
     Why: 
-    After 4 years of data, the 'horse' and 'racing_actor' tables are large (100k+ rows).
-    Checking existence via SQL (SELECT/INSERT) for every row triggers disk I/O and swaps indexes out of RAM.
-    Pre-loading moves this check to O(1) memory lookup, bypassing the DB entirely for known entities.
+    After years of data, these tables contain 100k+ rows. Checking existence via SQL 
+    (SELECT/INSERT) for every participant triggers massive Disk I/O.
+    Pre-loading moves this check to an O(1) hash map lookup, bypassing the DB entirely 
+    for known entities.
     """
     logger.info("PRE-WARMING: Loading Entity Caches (Horses/Actors)...")
     conn = get_pooled_connection()
@@ -138,7 +142,7 @@ def preload_caches():
             # 1. Load Horses
             logger.info("Loading Horses into RAM...")
             cur.execute("SELECT horse_name, horse_id FROM horse")
-            # Fetching tuple (name, id) is highly efficient
+            # Tuple unpacking (name, id) is efficient
             for name, h_id in cur.fetchall():
                 HORSE_CACHE[name] = h_id
             
@@ -220,115 +224,142 @@ def to_euros(cents):
     except (ValueError, TypeError):
         return None
 
-# --- HELPERS DB (Optimized with Cache) ---
+# --- HELPERS DB (Optimized: Parallel Inserts + Safe Cache Update) ---
 
 def get_or_create_horse(cur, p):
-    """
-    Idempotent upsert logic for Horse entities.
-    OPTIMIZATION: Checks global RAM cache first.
-    """
     name = p.get("nom")
     if not name: return None
     
-    # 1. Fast Path: Memory Lookup (No DB call)
-    if name in HORSE_CACHE:
-        return HORSE_CACHE[name]
+    # 1. Fast Path: In-Memory Cache Lookup
+    if name in HORSE_CACHE: return HORSE_CACHE[name]
 
-    # 2. Slow Path: DB Interaction (Thread-Safe Write)
-    # We lock to prevent multiple threads from inserting the same new horse simultaneously.
-    with CACHE_LOCK:
-        # Double-check inside lock
-        if name in HORSE_CACHE:
-            return HORSE_CACHE[name]
-            
-        age = p.get("age")
-        birth_year = (dt.date.today().year - int(age)) if age else None
-        raw_sex = p.get("sexe")
-        clean_sex = raw_sex[0].upper() if raw_sex else None
-        
-        cur.execute(
-            "INSERT INTO horse (horse_name, sex, birth_year) VALUES (%s, %s, %s) "
-            "ON CONFLICT (horse_name) DO NOTHING RETURNING horse_id;",
-            (name, clean_sex, birth_year)
-        )
-        row = cur.fetchone()
-        
-        if row:
-            h_id = row[0]
-        else:
-            # It existed but wasn't in cache (race condition or cache not loaded)
-            cur.execute("SELECT horse_id FROM horse WHERE horse_name = %s", (name,))
-            res = cur.fetchone()
-            h_id = res[0] if res else None
-        
-        if h_id:
+    # 2. Slow Path: Database Insertion (Parallel execution, no Python Lock)
+    # Prepare data for insertion
+    age = p.get("age")
+    birth_year = (dt.date.today().year - int(age)) if age else None
+    raw_sex = p.get("sexe")
+    clean_sex = raw_sex[0].upper() if raw_sex else None
+    
+    h_id = None
+    
+    # Acquire a temporary connection to commit this specific entity immediately.
+    # This ensures other threads can see it even if the main transaction fails.
+    tmp_conn = get_pooled_connection()
+    try:
+        with tmp_conn: # Automatic commit on exit
+            with tmp_conn.cursor() as tmp_cur:
+                # Rely on Postgres 'ON CONFLICT' to handle race conditions at DB level
+                tmp_cur.execute(
+                    "INSERT INTO horse (horse_name, sex, birth_year) VALUES (%s, %s, %s) "
+                    "ON CONFLICT (horse_name) DO NOTHING RETURNING horse_id;",
+                    (name, clean_sex, birth_year)
+                )
+                row = tmp_cur.fetchone()
+                if row:
+                    h_id = row[0]
+                else:
+                    # If another thread inserted it milliseconds ago, fetch the ID.
+                    tmp_cur.execute("SELECT horse_id FROM horse WHERE horse_name = %s", (name,))
+                    res = tmp_cur.fetchone()
+                    h_id = res[0] if res else None
+    finally:
+        release_pooled_connection(tmp_conn)
+    
+    # 3. Cache Update (Locked)
+    # Only lock for the microsecond required to update the Python dictionary.
+    if h_id:
+        with CACHE_LOCK:
             HORSE_CACHE[name] = h_id
-        
-        return h_id
+    
+    return h_id
 
 def get_or_create_actor(cur, name):
-    """
-    Idempotent upsert logic for Racing Actors (Trainers/Drivers).
-    OPTIMIZATION: Checks global RAM cache first.
-    """
     clean_name = truncate(name, 100)
     if not clean_name: return None
     
-    if clean_name in ACTOR_CACHE:
-        return ACTOR_CACHE[clean_name]
+    if clean_name in ACTOR_CACHE: return ACTOR_CACHE[clean_name]
     
-    with CACHE_LOCK:
-        if clean_name in ACTOR_CACHE:
-            return ACTOR_CACHE[clean_name]
-
-        cur.execute(
-            "INSERT INTO racing_actor (actor_name) VALUES (%s) "
-            "ON CONFLICT (actor_name) DO NOTHING RETURNING actor_id;",
-            (clean_name,)
-        )
-        row = cur.fetchone()
-        if row:
-            a_id = row[0]
-        else:
-            cur.execute("SELECT actor_id FROM racing_actor WHERE actor_name = %s", (clean_name,))
-            res = cur.fetchone()
-            a_id = res[0] if res else None
+    a_id = None
+    tmp_conn = get_pooled_connection()
+    try:
+        with tmp_conn:
+            with tmp_conn.cursor() as tmp_cur:
+                tmp_cur.execute(
+                    "INSERT INTO racing_actor (actor_name) VALUES (%s) "
+                    "ON CONFLICT (actor_name) DO NOTHING RETURNING actor_id;",
+                    (clean_name,)
+                )
+                row = tmp_cur.fetchone()
+                if row:
+                    a_id = row[0]
+                else:
+                    tmp_cur.execute("SELECT actor_id FROM racing_actor WHERE actor_name = %s", (clean_name,))
+                    res = tmp_cur.fetchone()
+                    a_id = res[0] if res else None
+    finally:
+        release_pooled_connection(tmp_conn)
         
-        if a_id:
+    if a_id:
+        with CACHE_LOCK:
             ACTOR_CACHE[clean_name] = a_id
-        
-        return a_id
+    return a_id
 
 def get_or_create_shoeing(cur, code):
     if not code: return None
     if code in SHOEING_CACHE: return SHOEING_CACHE[code]
     
-    with CACHE_LOCK:
-        if code in SHOEING_CACHE: return SHOEING_CACHE[code]
-        cur.execute(
-            "INSERT INTO lookup_shoeing (code) VALUES (%s) "
-            "ON CONFLICT (code) DO NOTHING RETURNING shoeing_id;", (code,)
-        )
-        row = cur.fetchone()
-        s_id = row[0] if row else cur.execute("SELECT shoeing_id FROM lookup_shoeing WHERE code=%s", (code,)) or cur.fetchone()[0]
-        if s_id: SHOEING_CACHE[code] = s_id
-        return s_id
+    s_id = None
+    tmp_conn = get_pooled_connection()
+    try:
+        with tmp_conn:
+            with tmp_conn.cursor() as tmp_cur:
+                tmp_cur.execute(
+                    "INSERT INTO lookup_shoeing (code) VALUES (%s) "
+                    "ON CONFLICT (code) DO NOTHING RETURNING shoeing_id;", (code,)
+                )
+                row = tmp_cur.fetchone()
+                if row:
+                    s_id = row[0]
+                else:
+                    tmp_cur.execute("SELECT shoeing_id FROM lookup_shoeing WHERE code=%s", (code,))
+                    res = tmp_cur.fetchone()
+                    s_id = res[0] if res else None
+    finally:
+        release_pooled_connection(tmp_conn)
+
+    if s_id:
+        with CACHE_LOCK:
+            SHOEING_CACHE[code] = s_id
+    return s_id
 
 def get_or_create_incident(cur, code):
     if not code: return None
     if code in INCIDENT_CACHE: return INCIDENT_CACHE[code]
     
-    with CACHE_LOCK:
-        if code in INCIDENT_CACHE: return INCIDENT_CACHE[code]
-        cur.execute(
-            "INSERT INTO lookup_incident (code) VALUES (%s) "
-            "ON CONFLICT (code) DO NOTHING RETURNING incident_id;", (code,)
-        )
-        row = cur.fetchone()
-        i_id = row[0] if row else cur.execute("SELECT incident_id FROM lookup_incident WHERE code=%s", (code,)) or cur.fetchone()[0]
-        if i_id: INCIDENT_CACHE[code] = i_id
-        return i_id
+    i_id = None
+    tmp_conn = get_pooled_connection()
+    try:
+        with tmp_conn:
+            with tmp_conn.cursor() as tmp_cur:
+                tmp_cur.execute(
+                    "INSERT INTO lookup_incident (code) VALUES (%s) "
+                    "ON CONFLICT (code) DO NOTHING RETURNING incident_id;", (code,)
+                )
+                row = tmp_cur.fetchone()
+                if row:
+                    i_id = row[0]
+                else:
+                    tmp_cur.execute("SELECT incident_id FROM lookup_incident WHERE code=%s", (code,))
+                    res = tmp_cur.fetchone()
+                    i_id = res[0] if res else None
+    finally:
+        release_pooled_connection(tmp_conn)
 
+    if i_id:
+        with CACHE_LOCK:
+            INCIDENT_CACHE[code] = i_id
+    return i_id
+    
 def insert_participant(cur, race_id, p):
     """
     Main ingestion logic for a single participant.

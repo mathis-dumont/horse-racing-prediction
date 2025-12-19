@@ -2,40 +2,50 @@
 
 Ce projet vise à construire un système complet pour la collecte de données, l'analyse et la prédiction des résultats des courses hippiques françaises, en s'appuyant sur l'API publique du PMU.
 
-## Fonctionnalités
+Le projet utilise une **architecture Orientée Objet (OOP)** stricte et expose désormais ses données via une **API REST (FastAPI)**.
 
-*   **Collecte exhaustive** : Récupération des Programmes (JSON 1), Participants (JSON 2), Performances détaillées/Musique (JSON 3) et Rapports (JSON 4).
-*   **Ingestion performante** : Scripts optimisés utilisant le **multithreading** et l'insertion par lots (batch processing) pour gérer la volumétrie importante des historiques.
-*   **Orchestration** : Scripts permettant l'ingestion d'une journée complète ou d'une plage de dates (reprise d'historique).
-*   **Stockage structuré** : Base de données PostgreSQL normalisée pour faciliter l'analyse ML.
-*   **Discrétion** : Gestion des délais et des en-têtes HTTP pour simuler un comportement humain (Stealth Mode).
+## 🚀 Fonctionnalités Clés
+
+*   **Architecture Modulaire** : Code structuré en classes avec une séparation claire des responsabilités (ETL vs API).
+*   **Backend API Modern** :
+    *   **FastAPI** : Framework asynchrone haute performance.
+    *   **Repository Pattern** : Isolation totale des requêtes SQL (pas de SQL dans les contrôleurs).
+    *   **Pydantic** : Validation stricte des données et sérialisation automatique (DTOs).
+*   **Performance & Optimisation** :
+    *   **Multithreading** : Ingestion parallèle contrôlée (Workers).
+    *   **Cache In-Memory** : Chargement des entités en RAM pour réduire les I/O BDD.
+    *   **Singleton Database** : Gestion centralisée du pool de connexions PostgreSQL.
+*   **Robustesse** : Retry automatique, gestion des Deadlocks et Fallback JSON local.
 
 ---
 
-## Structure du projet
+## 📂 Structure du projet
 
 ```text
 horse-racing-prediction/
-├── scripts/                # Scripts d'ingestion (ETL) et d'inspection
-│   ├── ingest_full_day.py       # Orchestrateur pour une journée complète
-│   ├── ingest_range.py          # Orchestrateur pour une période (historique)
-│   ├── ingest_*.py              # Scripts unitaires par type de données (programme, perfs...)
-│   └── inspect_*.py             # Scripts d'analyse exploratoire des JSON
-├── src/pmu_prediction/     # Code applicatif (API, ML, Core)
-│   ├── pmu_api/            # Client HTTP
-│   ├── ingestion/          # Logique métier d'ingestion
-│   ├── db/                 # Connexion DB
-│   └── ml/                 # Machine Learning (Features, Training, Predict)
-├── sql/                    # Scripts d'initialisation de la BDD
-├── doc/                    # Documentation technique et fonctionnelle
-├── tests/                  # Tests unitaires
+├── failures/               # Dossier de sauvegarde automatique (Fallback JSON)
+├── src/
+│   ├── api/                # Couche API (Backend)
+│   │   ├── main.py         # Point d'entrée FastAPI (Routes)
+│   │   ├── repositories.py # Logique d'accès aux données (SQL)
+│   │   └── schemas.py      # Modèles de données Pydantic (DTOs)
+│   ├── core/               # Cœur du système
+│   │   ├── config.py       # Configuration centralisée
+│   │   └── database.py     # Gestionnaire BDD Singleton
+│   └── ingestion/          # Logique métier (ETL)
+│   │   ├── base.py         # Classe abstraite (ABC)
+│   │   ├── program.py      # Ingestion Programme & Réunions
+│   │   ├── participants.py # Ingestion Participants & Chevaux
+│   │   ├── performances.py # Ingestion Historique & Performances
+│   │   └── rapports.py     # Ingestion Paris & Rapports
+├── main.py                 # Point d'entrée de l'ETL (CLI)
 ├── requirements.txt        # Dépendances Python
-└── README.md               # Ce fichier
+└── .env                    # Variables d'environnement
 ```
 
 ---
 
-## Installation
+## ⚙️ Installation
 
 1. **Cloner le dépôt et installer les dépendances :**
 
@@ -45,7 +55,7 @@ pip install -r requirements.txt
 
 2. **Configurer l'environnement :**
 
-Créez un fichier `.env` à la racine du projet :
+Créez un fichier `.env` à la racine contenant votre chaîne de connexion PostgreSQL :
 
 ```ini
 DB_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME
@@ -53,61 +63,58 @@ DB_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME
 
 3. **Initialiser la base de données :**
 
-Exécutez les scripts SQL dans l'ordre pour créer les tables et les contraintes :
-
-1. `sql/01_schema_initial.sql`
-2. `sql/02_add_constraints.sql`
+Assurez-vous que les scripts SQL (`sql/01_schema.sql`) ont été exécutés.
 
 ---
 
-## Utilisation
+## 💻 Utilisation
 
-### 1. Ingestion d'une journée complète
-Pour récupérer le programme, les participants, les performances et les rapports d'une date spécifique :
+### A. Ingestion des données (ETL)
 
-```bash
-python scripts/ingest_full_day.py --date 05112025
-```
-
-### 2. Ingestion d'une période (Historique)
-Pour récupérer des données sur plusieurs jours consécutifs (ex: pour constituer le dataset d'entraînement) :
+Utilisez `main.py` pour télécharger et stocker les données.
 
 ```bash
-python scripts/ingest_range.py --start 01112025 --end 05112025
+# 1. Ingestion complète d'une journée (Recommandé)
+python main.py --date 05112025 --type all
+
+# 2. Ingestion module par module
+python main.py --date 05112025 --type program
+python main.py --date 05112025 --type participants
 ```
 
-### 3. Scripts unitaires (Debugging)
-Il est possible de lancer l'ingestion étape par étape :
+### B. Lancement de l'API (Backend)
 
-*   **Programme** : `python scripts/ingest_programme_day.py --date DDMMYYYY`
-*   **Participants** : `python scripts/ingest_participants_day.py --date DDMMYYYY`
-*   **Performances** : `python scripts/ingest_performances_day.py --date DDMMYYYY`
-*   **Rapports** : `python scripts/ingest_rapports_day.py --date DDMMYYYY`
+Le projet expose une API REST pour consulter les données ingérées.
 
----
+1. **Démarrer le serveur (Mode développement) :**
 
-## Documentation
+```bash
+uvicorn src.api.main:app --reload
+```
 
-Une documentation détaillée est disponible dans le dossier `doc/` :
+2. **Accéder à la documentation interactive (Swagger UI) :**
 
-*   **01_cahier_des_charges.md** : Objectifs et périmètre.
-*   **02_architecture_bdd.md** : Schéma relationnel et dictionnaire des données.
-*   **04_scripts_ingestion.md** : Détails techniques sur le pipeline ETL.
+Ouvrez votre navigateur sur : **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)**
+
+Vous pourrez y tester les endpoints suivants :
+*   `GET /races/{date_code}` : Liste des courses pour une date donnée.
+*   `GET /races/{race_id}/participants` : Liste des partants et cotes pour une course.
 
 ---
 
 ## 🗺 Roadmap & Avancement
 
 **Ingestion des données (ETL)**
-- [x] Schéma SQL initial & Contraintes
+- [x] Refactoring Architecture OOP (Clean Code)
+- [x] Optimisation Cache RAM (Réduction I/O)
 - [x] Ingestion JSON 1 (Programme)
 - [x] Ingestion JSON 2 (Participants & Chevaux)
 - [x] Ingestion JSON 3 (Historique complet & Performances)
 - [x] Ingestion JSON 4 (Rapports & Paris)
-- [x] Orchestrateur de reprise d'historique (Batch range)
 
 **Machine Learning & Application**
 - [ ] Construction du Dataset unifié (Feature Engineering)
 - [ ] Entraînement des modèles (Victory & Top 3)
-- [ ] API de prédiction (FastAPI)
+- [x] API de lecture (FastAPI & Repository Pattern)
+- [ ] API de prédiction (Inférence modèle)
 - [ ] Interface Web de visualisation

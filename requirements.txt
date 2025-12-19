@@ -27,3 +27,21 @@ pytest==8.3.2
 # Permet de formater les logs Python en JSON, ce qui est idéal pour l'analyse centralisée des logs
 # dans des outils comme ELK Stack, Splunk, ou pour faciliter le traitement machine des logs.
 python-json-logger==2.0.7
+
+# API Framework
+# Le framework web moderne et rapide (haute performance) pour construire des APIs avec Python 3.8+.
+# Il gère le routing, l'injection de dépendances et la génération de documentation (Swagger UI).
+fastapi==0.110.0
+
+# Data Validation
+# Utilisé par FastAPI pour la validation des données et la sérialisation (les schémas dans schemas.py).
+# Définit les structures de données (BaseModel) et assure le typage strict.
+pydantic==2.7.0
+
+# ASGI Server
+# Le serveur web asynchrone nécessaire pour exécuter l'application FastAPI.
+# La version "standard" inclut les dépendances recommandées (comme uvloop) pour la performance.
+uvicorn[standard]==0.29.0
+
+pandas
+pyarrow

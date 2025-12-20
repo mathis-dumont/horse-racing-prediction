@@ -22,7 +22,21 @@ class RapportsIngestor(BaseIngestor):
 
     def _insert_race_bet(self, cur, race_id, bet):
         raw_type = bet.get("typePari")
-        clean_type = BET_TYPE_MAP.get(raw_type, raw_type[:10] if raw_type else None)
+        clean_type = BET_TYPE_MAP.get(raw_type)
+        if clean_type is None:
+            if raw_type:
+                if len(raw_type) > 10:
+                    truncated = raw_type[:10]
+                    self.logger.warning(
+                        "Bet type '%s' not found in BET_TYPE_MAP; truncating to '%s'.",
+                        raw_type,
+                        truncated,
+                    )
+                    clean_type = truncated
+                else:
+                    clean_type = raw_type[:10]
+            else:
+                clean_type = None
         stake_euros = self._to_euros(bet.get("miseBase"))
 
         cur.execute(

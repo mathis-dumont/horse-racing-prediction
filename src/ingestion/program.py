@@ -116,7 +116,21 @@ class ProgramIngestor(BaseIngestor):
             program_date = dt.datetime.strptime(self.date_code, "%d%m%Y").date()
         except ValueError:
             ts = programme.get("date")
-            program_date = dt.datetime.fromtimestamp(ts / 1000).date()
+            if not ts:
+                self.logger.error(
+                    "Skipping date %s due to missing 'date' timestamp in programme payload.",
+                    self.date_code,
+                )
+                return
+            try:
+                program_date = dt.datetime.fromtimestamp(ts / 1000).date()
+            except (TypeError, ValueError, OSError, OverflowError):
+                self.logger.error(
+                    "Skipping date %s due to invalid 'date' timestamp in programme payload: %r",
+                    self.date_code,
+                    ts,
+                )
+                return
 
         conn = self.db_manager.get_connection()
         try:

@@ -230,7 +230,7 @@ class ParticipantsIngestor(BaseIngestor):
         session = self._get_http_session()
         participants, status_code = self._fetch_participants_json(session, meeting_num, race_num)
         
-        if status_code in [204, 404]: return 0, IngestStatus.SKIPPED_NO_CONTENT
+        if status_code in [204, 404]: return 0, IngestStatus.SKIPPED
         if participants is None: return 0, IngestStatus.FAILED
 
         conn = None

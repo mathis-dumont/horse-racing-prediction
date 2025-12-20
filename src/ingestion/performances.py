@@ -82,7 +82,7 @@ class PerformancesIngestor(BaseIngestor):
         
         race_date = None
         if history_item.get("date"):
-            race_date = dt.datetime.utcfromtimestamp(history_item["date"] / 1000).date()
+            race_date = dt.datetime.fromtimestamp(history_item["date"] / 1000, tz=dt.timezone.utc).date()
         
         subject = next((p for p in history_item.get("participants", []) if p.get("itsHim")), None)
         finish_place, finish_status, jockey_weight, draw, red_km, dist_travel = None, None, None, None, None, None

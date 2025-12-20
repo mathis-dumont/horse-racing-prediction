@@ -15,6 +15,11 @@ class DatabaseManager:
         if self._pool is None:
             if not DB_URL:
                 raise ValueError("DB_URL environment variable is not set")
+            # Allow up to two database connections per worker (to support concurrent
+            # operations such as separate read/write or background tasks) plus a small
+            # fixed overhead for non-worker usage (e.g., health checks, admin queries).
+            # This keeps the pool large enough for peak thread usage without exhausting
+            # the database with unbounded connections.
             pool_size = (MAX_WORKERS * 2) + 2
             self._pool = psycopg2.pool.ThreadedConnectionPool(1, pool_size, DB_URL)
 

@@ -59,7 +59,7 @@ def process_date(date_code: str, ingest_type: str):
         try:
             ingestor.ingest()
         except Exception as e:
-            logger.error(f"Ingestion failed for {ingestor.__class__.__name__} on {date_code}: {e}")
+            logger.exception(f"Ingestion failed for {ingestor.__class__.__name__} on {date_code}: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="PMU Ingestion Orchestrator (ETL CLI)")

@@ -64,7 +64,7 @@ class ParticipantsIngestor(BaseIngestor):
         if name in self.horse_cache: return self.horse_cache[name]
 
         age = p.get("age")
-        birth_year = (dt.date.today().year - int(age)) if age else None
+        birth_year = (dt.datetime.now(tz=dt.timezone.utc).year - int(age)) if age else None
         raw_sex = p.get("sexe")
         clean_sex = raw_sex[0].upper() if raw_sex else None
         

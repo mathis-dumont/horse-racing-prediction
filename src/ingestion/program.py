@@ -123,7 +123,7 @@ class ProgramIngestor(BaseIngestor):
                 )
                 return
             try:
-                program_date = dt.datetime.fromtimestamp(ts / 1000).date()
+                program_date = dt.datetime.fromtimestamp(ts / 1000, tz=dt.timezone.utc).date()
             except (TypeError, ValueError, OSError, OverflowError):
                 self.logger.error(
                     "Skipping date %s due to invalid 'date' timestamp in programme payload: %r",

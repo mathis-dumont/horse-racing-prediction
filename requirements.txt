@@ -43,5 +43,22 @@ pydantic==2.7.0
 # La version "standard" inclut les dépendances recommandées (comme uvloop) pour la performance.
 uvicorn[standard]==0.29.0
 
+# Data Analysis & Manipulation
+# Bibliothèque incontournable pour la manipulation et l'analyse de données (DataFrames).
+# Utilisée pour nettoyer, transformer et structurer les données des courses avant ingestion ou prédiction.
 pandas
+
+# High-performance in-memory data & Parquet engine
+# Nécessaire pour optimiser pandas (backend performant) et gérer les formats de fichiers colonnaires (Parquet).
+# Améliore considérablement la vitesse de lecture/écriture et l'efficacité mémoire.
 pyarrow
+
+# SQL Toolkit & ORM
+# Permet d'interagir avec la base de données via des objets Python (ORM) plutôt qu'en SQL pur.
+# Facilite la construction de requêtes complexes et l'abstraction de la base de données.
+sqlalchemy
+
+# Machine Learning
+# Bibliothèque standard pour l'apprentissage automatique (Machine Learning).
+# Contient les algorithmes nécessaires pour entraîner les modèles de prédiction (régression, classification) et évaluer leurs performances.
+scikit-learn

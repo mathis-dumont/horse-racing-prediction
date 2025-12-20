@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
+import os
 
 # 1. LOAD THE DATA
 print(" Loading CSV files...")
@@ -72,7 +73,11 @@ df_ready = df_final[features].copy()
 # Drop rows where target (finish_rank) might be missing or broken
 df_ready = df_ready.dropna(subset=['finish_rank'])
 
-output_file = "dataset_ready_for_ml.csv"
+# Ensure the data directory exists
+os.makedirs("data", exist_ok=True)
+
+# Save to the data folder
+output_file = "data/dataset_ready_for_ml.csv"
 df_ready.to_csv(output_file, index=False)
 
 print(f" Success! Generated '{output_file}' with {len(df_ready)} rows.")

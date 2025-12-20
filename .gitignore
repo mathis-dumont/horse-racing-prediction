@@ -71,4 +71,9 @@ htmlcov/
 # Supabase CLI cache
 .supabase/
 
+failures/
+
+#data
+data/
+*.parquet
 *.csv

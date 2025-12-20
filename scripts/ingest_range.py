@@ -17,11 +17,13 @@ import random
 # -----------------------------------------------------------------------------
 # Path Setup to import sibling scripts
 # -----------------------------------------------------------------------------
+# Dynamically add the current directory to sys.path to allow importing 
+# the sibling module 'ingest_full_day' regardless of the invocation context.
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
 
 try:
-    # On importe la fonction principale du script journalier
+    # Import the main orchestration function from the daily script.
     from ingest_full_day import process_full_day
 except ImportError as e:
     print(f"CRITICAL ERROR: Could not import ingest_full_day. Details: {e}")
@@ -37,7 +39,10 @@ def setup_logging():
 
 
 def date_range_generator(start_date_str: str, end_date_str: str):
-    """Yields date strings (DDMMYYYY) from start to end (inclusive)."""
+    """
+    Generator yielding formatted date strings (DDMMYYYY) for the specified range.
+    Includes validation to ensure logical date ordering.
+    """
     try:
         start = dt.datetime.strptime(start_date_str, "%d%m%Y").date()
         end = dt.datetime.strptime(end_date_str, "%d%m%Y").date()
@@ -54,6 +59,11 @@ def date_range_generator(start_date_str: str, end_date_str: str):
 
 
 def ingest_range(start_date: str, end_date: str):
+    """
+    Main Batch Orchestrator.
+    Iterates through the date range and triggers the daily ingestion pipeline.
+    Implements fault isolation to ensure one failed day does not crash the entire batch.
+    """
     logger = logging.getLogger("RangeIngest")
     logger.info("===================================================")
     logger.info("Starting BATCH Ingestion from %s to %s", start_date, end_date)
@@ -78,27 +88,30 @@ def ingest_range(start_date: str, end_date: str):
         day_start = time.time()
         
         try:
-            # Exécution de l'ingestion complète pour une journée
+            # Execute the full day ingestion pipeline.
             process_full_day(date_code)
             
             success_count += 1
             
-            # Délai de sécurité entre les jours (Anti-ban & Politeness)
-            # On ne dort pas après le dernier jour
+            # Rate Limiting / Politeness Strategy:
+            # Sleep between days to reduce server load and avoid API IP bans.
+            # Skipped after the final iteration.
             if i < total_days:
                 sleep_time = random.uniform(1.0, 3.0)
                 logger.info(f"Day completed. Sleeping {sleep_time:.2f}s before next day...")
                 time.sleep(sleep_time)
 
         except SystemExit as e:
-            # ingest_full_day fait un sys.exit(1) en cas d'erreur critique.
-            # On attrape cette exception pour ne pas tuer la boucle du range.
+            # Fault Isolation:
+            # 'ingest_full_day' raises SystemExit(1) on critical failures.
+            # We catch this to prevent the batch process from terminating, allowing subsequent days to proceed.
             if e.code != 0:
                 logger.error(f"!!! CRITICAL FAILURE on date {date_code}. (Exit Code: {e.code})")
                 failure_count += 1
             else:
                 success_count += 1
         except Exception as e:
+            # Catch-all for unforeseen runtime errors.
             logger.error(f"!!! UNHANDLED EXCEPTION on date {date_code}: {e}")
             failure_count += 1
         

@@ -1,149 +1,75 @@
-// ---- Données simulées (mock) ----
-// Tu remplaceras ça par des appels API plus tard
-
-const mockCourses = [
-  {
-    id: "R1C3",
-    label: "R1C3 — Prix d'Enghien",
-    time: "15:15",
-    track: "Enghien",
-    type: "Plat",
-    bets: ["Simple gagnant", "Simple placé", "Couplé"]
-  },
-  {
-    id: "R2C5",
-    label: "R2C5 — Grand Handicap",
-    time: "16:40",
-    track: "Longchamp",
-    type: "Obstacle",
-    bets: ["Simple gagnant", "Simple placé", "Tiercé"]
-  },
-  {
-    id: "R3C2",
-    label: "R3C2 — Prix du Haras",
-    time: "18:05",
-    track: "Vincennes",
-    type: "Trot",
-    bets: ["Simple gagnant", "Simple placé", "Quinté+"]
-  }
-];
-
-const mockPredictions = {
-  // Clé = course_id + bet_type simplifié
-  "R1C3|Simple gagnant": [
-    {
-      horse: "Cheval 5",
-      p_win: 0.32,
-      p_place: 0.58,
-      odds: 7.5,
-      comment: "Bon outsider, intéressant en placé."
-    },
-    {
-      horse: "Cheval 3",
-      p_win: 0.25,
-      p_place: 0.50,
-      odds: 5.2,
-      comment: "Cheval régulier, pari raisonnable."
-    },
-    {
-      horse: "Cheval 1",
-      p_win: 0.18,
-      p_place: 0.42,
-      odds: 3.8,
-      comment: "Favori logique, mais moins de value."
-    }
-  ],
-  "R2C5|Simple placé": [
-    {
-      horse: "Cheval 8",
-      p_win: 0.15,
-      p_place: 0.52,
-      odds: 11.0,
-      comment: "Profil spéculatif mais value en placé."
-    },
-    {
-      horse: "Cheval 2",
-      p_win: 0.22,
-      p_place: 0.55,
-      odds: 4.3,
-      comment: "Bon compromis risque / gain."
-    }
-  ]
-};
-
-const mockResults = [
-  {
-    course: "R1C1 — Prix de la Forêt",
-    bet_type: "Simple gagnant",
-    model_pred: "Cheval 4 (28%)",
-    real_result: "Cheval 4 — 1er",
-    correct: true
-  },
-  {
-    course: "R1C2 — Prix des Alpes",
-    bet_type: "Simple placé",
-    model_pred: "Cheval 2 (49%)",
-    real_result: "Cheval 2 — 5e",
-    correct: false
-  },
-  {
-    course: "R2C1 — Prix du Midi",
-    bet_type: "Simple gagnant",
-    model_pred: "Cheval 7 (22%)",
-    real_result: "Cheval 7 — 2e",
-    correct: false
-  }
-];
-
-const mockStats = {
-  from_date: "01/02/2025",
-  global: 0.62,
-  simple_gagnant: 0.29,
-  simple_place: 0.54
-};
-
-// ---- Helpers ----
+// ======================================================
+// Helpers
+// ======================================================
 
 function formatPercent(p) {
   return `${Math.round(p * 100)}%`;
 }
 
-// ---- Rendering ----
+// ======================================================
+// RACES DU JOUR (API réelle)
+// ======================================================
 
-function renderCourses() {
+async function loadRaces() {
   const container = document.getElementById("courses-list");
-  container.innerHTML = "";
+  container.innerHTML = "<p>Chargement des courses…</p>";
 
-  mockCourses.forEach((course) => {
-    const el = document.createElement("div");
-    el.className = "course-item";
-    el.dataset.courseId = course.id;
+  try {
+    const response = await fetch("/api/races");
+    const races = await response.json(); // ⬅️ C’EST UNE LISTE DIRECTE
 
-    el.innerHTML = `
-      <div class="course-main">
-        <span class="course-title">${course.label}</span>
-        <span class="course-sub">${course.track} • ${course.type}</span>
-      </div>
-      <div class="course-meta">
-        <span class="tag">${course.time}</span>
-        <span class="course-sub">Cliquer pour les paris</span>
-      </div>
-    `;
+    if (!Array.isArray(races) || races.length === 0) {
+      container.innerHTML = "<p>Aucune course disponible.</p>";
+      return;
+    }
 
-    el.addEventListener("click", () => openBetsForCourse(course));
-    container.appendChild(el);
-  });
+    container.innerHTML = "";
+
+    races.forEach((race) => {
+      const el = document.createElement("div");
+      el.className = "course-item";
+      el.dataset.courseId = race.id;
+
+      el.innerHTML = `
+        <div class="course-main">
+          <span class="course-title">${race.label}</span>
+          <span class="course-sub">${race.type} • ${race.distance} m • ${race.runners} partants</span>
+        </div>
+        <div class="course-meta">
+          <span class="tag">${race.time || "—"}</span>
+          <span class="course-sub">Cliquer pour les paris</span>
+        </div>
+      `;
+
+      // On garde ton comportement existant
+      el.addEventListener("click", () => openBetsForCourse(race));
+
+      container.appendChild(el);
+    });
+
+  } catch (err) {
+    console.error(err);
+    container.innerHTML = "<p>Erreur lors du chargement des courses.</p>";
+  }
 }
 
-function openBetsForCourse(course) {
+
+// ======================================================
+// BETS & PRÉDICTIONS (ENCORE MOCK)
+// ======================================================
+
+// Pour l’instant, on garde une version simple
+function openBetsForRace(raceLabel) {
   const panel = document.getElementById("bets-panel");
   const title = document.getElementById("bets-course-title");
   const list = document.getElementById("bets-list");
 
-  title.textContent = `Types de paris — ${course.label}`;
+  title.textContent = `Types de paris — ${raceLabel}`;
   list.innerHTML = "";
 
-  course.bets.forEach((bet) => {
+  const bets = ["Simple gagnant", "Simple placé"];
+
+  bets.forEach((bet) => {
     const betEl = document.createElement("div");
     betEl.className = "bet-chip";
 
@@ -154,7 +80,7 @@ function openBetsForCourse(course) {
 
     betEl.querySelector("button").addEventListener("click", (e) => {
       e.stopPropagation();
-      handlePredictionRequest(course, bet);
+      alert("Prédictions non branchées pour l’instant 🙂");
     });
 
     list.appendChild(betEl);
@@ -163,82 +89,37 @@ function openBetsForCourse(course) {
   panel.classList.remove("hidden");
 }
 
-function handlePredictionRequest(course, betType) {
-  // TODO : remplacer la logique mock par un appel API vers Flask
-  // fetch("/api/predict", { method: "POST", body: JSON.stringify({ ... }) })
-
-  const key = `${course.id}|${betType}`;
-  const preds = mockPredictions[key];
-
-  const title = document.getElementById("predictions-title");
-  const body = document.getElementById("predictions-body");
-  const panel = document.getElementById("predictions-panel");
-
-  title.textContent = `Prédictions — ${course.label} — ${betType}`;
-  body.innerHTML = "";
-
-  if (!preds) {
-    const row = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 5;
-    td.textContent = "Pas encore de prédictions disponibles pour cette combinaison.";
-    row.appendChild(td);
-    body.appendChild(row);
-  } else {
-    preds.forEach((p) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${p.horse}</td>
-        <td>${formatPercent(p.p_win)}</td>
-        <td>${formatPercent(p.p_place)}</td>
-        <td>${p.odds.toFixed(1)}</td>
-        <td>${p.comment}</td>
-      `;
-      body.appendChild(tr);
-    });
-  }
-
-  panel.classList.remove("hidden");
-}
+// ======================================================
+// RÉSULTATS & STATS (TOUJOURS MOCK)
+// ======================================================
 
 function renderResults() {
   const body = document.getElementById("results-body");
-  body.innerHTML = "";
+  if (!body) return;
 
-  mockResults.forEach((r) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${r.course}</td>
-      <td>${r.bet_type}</td>
-      <td>${r.model_pred}</td>
-      <td>${r.real_result}</td>
-      <td class="${r.correct ? "text-success" : "text-danger"}">
-        ${r.correct ? "✔" : "✘"}
-      </td>
-    `;
-    body.appendChild(tr);
-  });
+  body.innerHTML = `
+    <tr>
+      <td colspan="5">Résultats non branchés pour l’instant</td>
+    </tr>
+  `;
 }
 
 function renderStats() {
-  document.getElementById("stat-global").textContent = formatPercent(
-    mockStats.global
-  );
-  document.getElementById("stat-sg").textContent = formatPercent(
-    mockStats.simple_gagnant
-  );
-  document.getElementById("stat-sp").textContent = formatPercent(
-    mockStats.simple_place
-  );
-  document.getElementById(
-    "stat-period"
-  ).textContent = `Depuis le ${mockStats.from_date}`;
+  const global = document.getElementById("stat-global");
+  if (!global) return;
+
+  global.textContent = "–";
+  document.getElementById("stat-sg").textContent = "–";
+  document.getElementById("stat-sp").textContent = "–";
+  document.getElementById("stat-period").textContent = "";
 }
 
-// ---- Initialisation ----
+// ======================================================
+// INITIALISATION
+// ======================================================
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Date du jour dans l'en-tête des courses
+  // Date du jour dans l'en-tête
   const dateEl = document.getElementById("courses-date");
   const today = new Date();
   const formatter = new Intl.DateTimeFormat("fr-FR", {
@@ -248,12 +129,93 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   dateEl.textContent = formatter.format(today);
 
-  renderCourses();
-  renderResults();
-  renderStats();
-
-  const closeBetsBtn = document.getElementById("close-bets");
-  closeBetsBtn.addEventListener("click", () => {
-    document.getElementById("bets-panel").classList.add("hidden");
-  });
+  // Charger réunions + courses depuis l'API
+  loadMeetings();
 });
+
+
+function loadMeetings() {
+  fetch("/api/races")
+    .then(res => res.json())
+    .then(data => {
+      renderMeetings(data);
+    })
+    .catch(err => {
+      console.error("Erreur chargement races :", err);
+    });
+}
+
+function renderMeetings(meetings) {
+  const container = document.getElementById("courses-list");
+  container.innerHTML = "";
+
+  meetings.forEach(meeting => {
+    // ---- Réunion ----
+    const meetingEl = document.createElement("div");
+    meetingEl.className = "meeting";
+
+    meetingEl.innerHTML = `
+      <h3 class="meeting-title">
+        Réunion R${meeting.meeting_number} — ${meeting.track}
+      </h3>
+    `;
+
+    // ---- Courses ----
+    meeting.races.forEach(race => {
+      const raceEl = document.createElement("div");
+      raceEl.className = "course-item";
+      raceEl.dataset.raceId = race.id;
+
+      raceEl.innerHTML = `
+        <div class="course-main">
+          <span class="course-title">${race.id}</span>
+          <span class="course-sub">
+            ${race.type} • ${race.distance ?? "—"} m • ${race.runners ?? "—"} partants
+          </span>
+        </div>
+      `;
+
+      // clic → afficher participants
+      raceEl.addEventListener("click", () => {
+        toggleParticipants(raceEl, race.id);
+      });
+
+      meetingEl.appendChild(raceEl);
+    });
+
+    container.appendChild(meetingEl);
+  });
+}
+
+function toggleParticipants(raceEl, raceId) {
+  console.log("toggleParticipants called with:", raceId);
+
+  const existing = raceEl.querySelector(".participants");
+  if (existing) {
+    existing.remove();
+    return;
+  }
+
+  fetch(`/api/races/${raceId}/participants`)
+    .then(res => {
+      console.log("API response status:", res.status);
+      return res.json();
+    })
+    .then(data => {
+      console.log("Participants data:", data);
+
+      const list = document.createElement("div");
+      list.className = "participants";
+
+      data.forEach(p => {
+        const row = document.createElement("div");
+        row.textContent = `${p.pmu_number} - ${p.horse} (${p.odds ?? "—"})`;
+        list.appendChild(row);
+      });
+
+      raceEl.appendChild(list);
+    })
+    .catch(err => {
+      console.error("Erreur fetch participants:", err);
+    });
+}

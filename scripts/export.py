@@ -128,7 +128,6 @@ def export_data():
     print(" Downloading History Dataset (Past Performances)...")
     try:
         df_hist = pd.read_sql(QUERY_HISTORY, connection)
-        
         # Ensure dates are dates
         df_hist['race_date'] = pd.to_datetime(df_hist['race_date'])
         

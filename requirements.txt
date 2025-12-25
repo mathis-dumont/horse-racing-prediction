@@ -62,3 +62,13 @@ sqlalchemy==2.0.32
 # Bibliothèque standard pour l'apprentissage automatique (Machine Learning).
 # Contient les algorithmes nécessaires pour entraîner les modèles de prédiction (régression, classification) et évaluer leurs performances.
 scikit-learn==1.5.1
+
+# Gradient Boosting Framework
+# Bibliothèque de gradient boosting évolutive, ultra-rapide et très performante.
+# Le standard pour les données tabulaires structurées, idéal pour maximiser la précision des prédictions de courses.
+xgboost==2.1.1
+
+# Categorical Boosting
+# Algorithme de boosting spécialisé dans la gestion native des variables catégorielles.
+# Permet de traiter efficacement les noms de chevaux, jockeys et hippodromes sans pré-traitement lourd (encodage).
+catboost==1.2.5

@@ -131,7 +131,7 @@ def evaluate_model(model, test_df, features):
 
 def main():
     # Configuration
-    DATA_PATH = '../scripts/data/final_ml_dataset.csv'
+    DATA_PATH = './data/final_ml_dataset.csv'
     
     # 1. Load Data
     train_df, test_df = load_and_split_data(DATA_PATH)

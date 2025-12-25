@@ -182,7 +182,7 @@ def evaluate_performance(model, test_df, features):
 
 def main():
     # Configuration
-    DATA_PATH = '../scripts/data/data_training_participants.csv'
+    DATA_PATH = './data/data_training_participants.csv'
     
     # 1. Load & Split
     train_df, test_df = load_and_split_data(DATA_PATH)

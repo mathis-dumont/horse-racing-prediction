@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import LabelEncoder
 
-file_path = "../scripts/data/data_training_participants.csv"
+file_path = "./data/data_training_participants.csv"
 
 def prepare_pmu_dataset(file_path):
     '''Prepare a dataset with all features extracted from data_training_participants'''
@@ -111,5 +111,4 @@ df_ml = finalize_ml_ready_dataset(df_prepared)
 
 # Final check
 # Save the final CSV
-df_ml.to_csv('../scripts/data/final_ml_dataset.csv', index=False)
-
+df_ml.to_csv('./data/final_ml_dataset.csv', index=False)

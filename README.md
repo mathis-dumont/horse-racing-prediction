@@ -1,113 +1,139 @@
-# Projet de prédiction des résultats de courses hippiques françaises
+# Projet de prédiction des résultats de courses hippiques
 
-Ce projet vise à construire un système complet pour la collecte de données, l'analyse et la prédiction des résultats des courses hippiques françaises, en s'appuyant sur l'API publique du PMU.
+Ce projet implémente une chaîne de traitement pour l'analyse et la prédiction des courses de trot en France. 
 
-## Fonctionnalités
+L'architecture est conçue pour être évolutive : elle sert actuellement de socle de données et commence à intégrer les pipelines de préparation pour le Machine Learning.
 
-*   **Collecte exhaustive** : Récupération des Programmes (JSON 1), Participants (JSON 2), Performances détaillées/Musique (JSON 3) et Rapports (JSON 4).
-*   **Ingestion performante** : Scripts optimisés utilisant le **multithreading** et l'insertion par lots (batch processing) pour gérer la volumétrie importante des historiques.
-*   **Orchestration** : Scripts permettant l'ingestion d'une journée complète ou d'une plage de dates (reprise d'historique).
-*   **Stockage structuré** : Base de données PostgreSQL normalisée pour faciliter l'analyse ML.
-*   **Discrétion** : Gestion des délais et des en-têtes HTTP pour simuler un comportement humain (Stealth Mode).
+## Documentation Technique
+
+Pour une compréhension approfondie du fonctionnement, référez-vous aux documents situés à la racine :
+
+*   **[`01_cahier_des_charges.md`](./01_cahier_des_charges.md)** : Objectifs, périmètre fonctionnel et contraintes.
+*   **[`02_architecturebdd.md`](./02_architecturebdd.md)** : Schéma relationnel SQL, dictionnaire des données et diagramme Mermaid.
+*   **[`04_ingestion_etl.md`](./04_ingestion_etl.md)** : Détails du pipeline d'ingestion, stratégies de cache et gestion des erreurs.
+*   **[`05_preparation_donnes_ml.md`](./05_preparation_donnes_ml.md)** : Méthodologie d'extraction, feature engineering et construction du dataset d'entraînement.
+*   **[`06_api_backend.md`](./06_api_backend.md)** : Documentation de l'API REST, architecture Repository et évolution vers le ML.
 
 ---
 
-## Structure du projet
+## Architecture Technique
+
+Le projet repose sur une séparation stricte des responsabilités :
+
+1.  **ETL (Extract, Transform, Load)** : Scripts Python orientés objet pour la collecte des données.
+2.  **Base de Données** : PostgreSQL et Supabase.
+3.  **Machine Learning Pipeline** : Scripts dédiés à l'extraction SQL et à la transformation des données (Feature Engineering).
+4.  **API Backend** : FastAPI avec une architecture en couches pour exposer les données.
 
 ```text
 horse-racing-prediction/
-├── scripts/                # Scripts d'ingestion (ETL) et d'inspection
-│   ├── ingest_full_day.py       # Orchestrateur pour une journée complète
-│   ├── ingest_range.py          # Orchestrateur pour une période (historique)
-│   ├── ingest_*.py              # Scripts unitaires par type de données (programme, perfs...)
-│   └── inspect_*.py             # Scripts d'analyse exploratoire des JSON
-├── src/pmu_prediction/     # Code applicatif (API, ML, Core)
-│   ├── pmu_api/            # Client HTTP
-│   ├── ingestion/          # Logique métier d'ingestion
-│   ├── db/                 # Connexion DB
-│   └── ml/                 # Machine Learning (Features, Training, Predict)
+├── failures/               # Stockage temporaire des JSON en erreur (Fallback)
 ├── sql/                    # Scripts d'initialisation de la BDD
-├── doc/                    # Documentation technique et fonctionnelle
-├── tests/                  # Tests unitaires
+├── scripts/                # Pipelines ML & Utilitaires
+│   ├── export.py           # Extraction BDD -> CSV
+│   └── data_preparation.py # Nettoyage & Feature Engineering
+├── src/
+│   ├── api/                # Backend FastAPI
+│   │   ├── main.py         # Points d'entrée (Routes)
+│   │   ├── repositories.py # Accès aux données (SQL)
+│   │   └── schemas.py      # Validation Pydantic (DTOs)
+│   ├── core/               # Configuration et DB
+│   └── ingestion/          # Logique d'ingestion
+├── etl.py                  # Script pour l'ingestion
 ├── requirements.txt        # Dépendances Python
-└── README.md               # Ce fichier
+└── .env                    # Variables d'environnement
 ```
 
 ---
 
-## Installation
+## ⚙️ Installation
 
-1. **Cloner le dépôt et installer les dépendances :**
+**1. Cloner le dépôt et installer les dépendances :**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-2. **Configurer l'environnement :**
+**2. Configurer l'environnement :**
 
-Créez un fichier `.env` à la racine du projet :
+Créez un fichier `.env` à la racine contenant la connexion PostgreSQL à Supabase :
 
 ```ini
 DB_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME
 ```
 
-3. **Initialiser la base de données :**
+**3. Initialiser la base de données :**
 
-Exécutez les scripts SQL dans l'ordre pour créer les tables et les contraintes :
-
-1. `sql/01_schema_initial.sql`
-2. `sql/02_add_constraints.sql`
+Exécutez le script SQL pour créer les tables :
 
 ---
 
 ## Utilisation
 
-### 1. Ingestion d'une journée complète
-Pour récupérer le programme, les participants, les performances et les rapports d'une date spécifique :
+### A. Ingestion des données (ETL)
 
+Le script `etl.py` pilote l'alimentation de la base.
+
+**Mise à jour quotidienne (Cron) :**
 ```bash
-python scripts/ingest_full_day.py --date 05112025
+# Ingestion complète pour une date spécifique (format JJMMAAAA)
+python etl.py --date 05122025 --type all
 ```
 
-### 2. Ingestion d'une période (Historique)
-Pour récupérer des données sur plusieurs jours consécutifs (ex: pour constituer le dataset d'entraînement) :
-
+**Ingestion sur une période donnée :**
 ```bash
-python scripts/ingest_range.py --start 01112025 --end 05112025
+# Ingestion sur une période donnée
+python etl.py --range 01012023 31122023 --type all
 ```
 
-### 3. Scripts unitaires (Debugging)
-Il est possible de lancer l'ingestion étape par étape :
+### B. Préparation Machine Learning
 
-*   **Programme** : `python scripts/ingest_programme_day.py --date DDMMYYYY`
-*   **Participants** : `python scripts/ingest_participants_day.py --date DDMMYYYY`
-*   **Performances** : `python scripts/ingest_performances_day.py --date DDMMYYYY`
-*   **Rapports** : `python scripts/ingest_rapports_day.py --date DDMMYYYY`
+Ces scripts transforment les données brutes de la base en un fichier CSV prêt pour l'entraînement des modèles (`dataset_ready_for_ml.csv`).
+
+**1. Extraction des données :**
+Génère les CSV bruts (participants et historique) depuis PostgreSQL.
+```bash
+python scripts/export.py
+```
+
+**2. Feature Engineering :**
+Calcule les agrégats (statistiques historiques, encodage) et nettoie les données.
+```bash
+python scripts/data_preparation.py
+```
+
+### C. API Backend
+
+L'API sert actuellement de couche d'accès aux données et évoluera pour servir les prédictions.
+
+**Démarrer le serveur :**
+```bash
+uvicorn src.api.main:app --reload
+```
+
+**Documentation interactive :**
+Accédez à **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)** pour explorer les endpoints.
 
 ---
 
-## Documentation
+## Roadmap & Avancement
 
-Une documentation détaillée est disponible dans le dossier `doc/` :
+**Phase 1 : Socle de Données (Terminé)**
+- [x] Architecture BDD PostgreSQL
+- [x] Pipeline d'ingestion (ETL) robuste (Gestion erreurs, Retry, Cache RAM)
+- [x] Ingestion historique (Performance & Rapports)
 
-*   **01_cahier_des_charges.md** : Objectifs et périmètre.
-*   **02_architecture_bdd.md** : Schéma relationnel et dictionnaire des données.
-*   **04_scripts_ingestion.md** : Détails techniques sur le pipeline ETL.
+**Phase 2 : API & Exposition (Terminé)**
+- [x] Backend FastAPI
+- [x] Pattern Repository pour l'accès aux données
+- [x] Documentation automatique
 
----
+**Phase 3 : Machine Learning (En cours)**
+- [x] Scripts d'extraction des données (SQL -> CSV)
+- [x] Feature Engineering (Calcul statistiques & Encodage)
+- [ ] Entraînement des modèles
+- [ ] Évaluation et sérialisation du meilleur modèle
 
-## 🗺 Roadmap & Avancement
-
-**Ingestion des données (ETL)**
-- [x] Schéma SQL initial & Contraintes
-- [x] Ingestion JSON 1 (Programme)
-- [x] Ingestion JSON 2 (Participants & Chevaux)
-- [x] Ingestion JSON 3 (Historique complet & Performances)
-- [x] Ingestion JSON 4 (Rapports & Paris)
-- [x] Orchestrateur de reprise d'historique (Batch range)
-
-**Machine Learning & Application**
-- [ ] Construction du Dataset unifié (Feature Engineering)
-- [ ] Entraînement des modèles (Victory & Top 3)
-- [ ] API de prédiction (FastAPI)
-- [ ] Interface Web de visualisation
+**Phase 4 : Interface Utilisateur (À venir)**
+- [ ] Intégration du moteur d'inférence dans l'API (`POST /predict`)
+- [ ] Dashboard de visualisation

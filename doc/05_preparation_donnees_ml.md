@@ -1,85 +1,82 @@
-# Documentation technique : préparation des données pour l'apprentissage automatique
+# Documentation Technique : Pipeline Machine Learning
 
-Ce document décrit la méthode de transformation des données brutes stockées dans la base postgresql en un jeu de données exploitable par des algorithmes d'apprentissage automatique. Les opérations sont réparties dans deux scripts python distincts : `export.py` pour l'extraction et `data_preparation.py` pour le traitement.
+Ce document décrit l'architecture du module d'apprentissage automatique (`src/ml`). Contrairement aux scripts séquentiels classiques, ce projet utilise une approche **Pipeline** intégrée, garantissant que les transformations appliquées lors de l'entraînement sont rigoureusement identiques à celles utilisées lors de la prédiction (inférence).
 
-## 1. Vue d'ensemble du flux de données
+## 1. Vue d'ensemble du flux
 
-Le pipeline de préparation suit quatre étapes logiques :
-1.  **source** : base de données relationnelle contenant les tables normalisées.
-2.  **extraction** : exécution de requêtes sql et génération de fichiers csv intermédiaires.
-3.  **transformation** : calcul d'agrégats statistiques et encodage numérique.
-4.  **sortie** : génération d'un fichier csv unique consolidé.
+Le processus ML est encapsulé dans le package `src.ml` et suit ces étapes :
 
----
-
-## 2. Extraction des données (`export.py`)
-
-Ce module assure l'interface avec la base de données via la bibliothèque `sqlalchemy`. Il génère deux jeux de données distincts pour séparer les participants de leur historique.
-
-### 2.1. Jeu de données des participants
-La requête principale (`QUERY_MAIN`) construit la table de référence pour l'entraînement. Chaque ligne correspond à la participation d'un cheval à une course.
-*   **jointures** : le script associe les tables `race_participant`, `race`, `race_meeting`, `daily_program` et `horse`.
-*   **enrichissement** : les identifiants numériques sont complétés par les libellés textuels via les tables `lookup_shoeing` (déferrage) et `racing_actor` (jockey, entraîneur).
-*   **variables cibles** :
-    *   `finish_rank` : rang d'arrivée officiel.
-    *   `is_winner` : variable binaire calculée (valeur 1 si le rang est 1, sinon 0).
-*   **filtre** : seules les courses ayant un résultat définitif sont extraites.
-
-### 2.2. Jeu de données de l'historique
-La requête secondaire (`QUERY_HISTORY`) extrait les performances passées depuis la table `horse_race_history`.
-*   **contenu** : date, discipline, distance, allocation, place, réduction kilométrique et distance parcourue.
-*   **objectif** : ces données brutes servent de base au calcul des indicateurs de performance dans l'étape suivante.
+1.  **Loader** (`loader.py`) : Extraction complexe SQL et fusion des données historiques.
+2.  **Feature Engineering** (`features.py`) : Transformateur scikit-learn personnalisé pour créer les variables mathématiques.
+3.  **Training** (`trainer.py`) : Entraînement du modèle XGBoost et sérialisation.
+4.  **Inference** (`predictor.py`) : Chargement du modèle et prédiction en temps réel.
 
 ---
 
-## 3. Transformation et ingénierie des caractéristiques (`data_preparation.py`)
+## 2. Extraction des Données (`loader.py`)
 
-Ce module charge les fichiers csv générés et applique les transformations mathématiques nécessaires.
+La classe `DataLoader` gère la récupération des données depuis PostgreSQL. Elle évite la création de CSV intermédiaires en chargeant les données directement en DataFrames pandas.
 
-### 3.1. Calcul des statistiques historiques
-Le script agrège les données de l'historique par cheval (`groupby`) pour créer de nouvelles variables synthétiques :
-*   `career_races` : nombre total de courses enregistrées.
-*   `avg_rank` : moyenne arithmétique des places obtenues.
-*   `avg_speed` : moyenne de la réduction kilométrique (vitesse).
-*   `best_speed` : meilleure performance chronométrique (minimum de la réduction kilométrique).
-*   `hist_earnings` : somme totale des allocations remportées.
+### Stratégie de Fusion
+Le loader exécute deux requêtes majeures :
+1.  **Main Dataset** : Récupère les participations (Course + Cheval + Contexte).
+2.  **History Dataset** : Récupère l'historique complet des courses passées.
 
-### 3.2. Gestion des données manquantes
-Le script applique des règles de gestion pour les valeurs nulles :
-*   **vitesse** : imputation d'une valeur par défaut (1.20) lorsque la réduction kilométrique est absente.
-*   **historique vide** : attribution de la valeur 0 pour les gains et le nombre de courses si le cheval n'a pas d'historique connu.
-*   **nettoyage** : suppression des lignes du jeu de données principal où le rang d'arrivée (`finish_rank`) est manquant.
-
-### 3.3. Encodage des variables catégorielles
-Les variables textuelles sont converties en valeurs numériques via la méthode `LabelEncoder` :
-*   **périmètre** : concerne les colonnes `racetrack_code`, `discipline`, `track_type`, `terrain_label`, `sex` et `shoeing_status`.
-*   **méthode** : chaque modalité unique est remplacée par un entier (ex: 0, 1, 2...).
-*   **résultat** : création de nouvelles colonnes avec le suffixe `_encoded`.
+Il effectue ensuite une agrégation (Group By) sur l'historique pour calculer des statistiques "à vie" (gains totaux, record de vitesse, taux de réussite) et fusionne ces stats avec le dataset principal.
 
 ---
 
-## 4. Structure du fichier de sortie
+## 3. Ingénierie des Caractéristiques (`features.py`)
 
-Le fichier final `dataset_ready_for_ml.csv` regroupe les colonnes sélectionnées pour l'entraînement :
+La transformation des données est gérée par la classe `PmuFeatureEngineer`, qui hérite de `TransformerMixin` de Scikit-Learn. Cela permet d'intégrer le nettoyage directement dans le modèle final.
 
-*   **métadonnées** : `program_date`, `race_id`, `horse_id`.
-*   **cibles** : `finish_rank` (classement), `is_winner` (victoire).
-*   **caractéristiques contextuelles** : `distance_m`, `declared_runners_count`.
-*   **caractéristiques du participant** : `age`, `career_winnings`.
-*   **caractéristiques calculées (historique)** : `career_races`, `avg_rank`, `avg_speed`, `hist_earnings`.
-*   **caractéristiques encodées** : `racetrack_code_encoded`, `discipline_encoded`, `shoeing_status_encoded`.
+### Transformations Appliquées
+
+1.  **Gestion Temporelle & Âge** :
+    *   Calcul de l'âge exact du cheval au moment de la course (`program_date` - `birth_year`).
+    *   Extraction du mois et du jour de la semaine (saisonnalité).
+
+2.  **Imputation (Valeurs Manquantes)** :
+    *   Variables numériques (Gains, Courses) : Remplacées par `0`.
+    *   Variables catégorielles (Jockey, Ferrure) : Remplacées par `"UNKNOWN"`.
+
+3.  **Métriques Relatives (Contextuelles)** :
+    *   *Ces calculs sont cruciaux car ils comparent un cheval à ses concurrents du jour.*
+    *   `winnings_rank_in_race` : Rang du cheval dans la course en termes de gains carrière.
+    *   `relative_winnings` : Ratio (Gains du cheval / Moyenne des gains de la course).
+    *   `odds_rank_in_race` : Classement du cheval selon la cote de référence (PMU).
+
+---
+
+## 4. Entraînement (`trainer.py`)
+
+La classe `XGBoostTrainer` orchestre l'apprentissage.
+
+### Le "Super Pipeline"
+Le modèle sauvegardé n'est pas juste l'algorithme XGBoost. C'est un pipeline composite :
+
+```python
+Pipeline([
+    ('engineer', PmuFeatureEngineer()),  # 1. Création des features (Ratios, Rangs...)
+    ('training_pipeline', Pipeline([     # 2. Pipeline technique
+        ('preprocessor', ColumnTransformer(...)), # Encodage (OrdinalEncoder)
+        ('model', XGBClassifier(...))             # Algorithme Gradient Boosting
+    ]))
+])
+```
+
+**Avantage :** Lors de l'utilisation dans l'API, nous envoyons des données brutes au modèle. Le pipeline s'occupe de recréer les features, encoder les catégories et prédire. Aucune logique n'est dupliquée.
+
+### Sortie
+Le script génère un fichier binaire sérialisé : `data/model_xgboost.pkl`.
 
 ---
 
 ## 5. Exécution
 
-La procédure nécessite l'exécution séquentielle des commandes suivantes à la racine du projet :
+Pour lancer un ré-entraînement complet du modèle :
 
-1.  extraction des données :
-    ```bash
-    python scripts/export.py
-    ```
-2.  préparation du fichier d'entraînement :
-    ```bash
-    python scripts/data_preparation.py
-    ```
+```bash
+# Depuis la racine du projet
+python -m src.ml.trainer
+```

@@ -76,3 +76,5 @@ failures/
 data/
 *.parquet
 *.csv
+
+.github/

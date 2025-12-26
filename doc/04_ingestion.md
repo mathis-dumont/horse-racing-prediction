@@ -15,7 +15,7 @@ Le code est organisé comme suit :
 *   **`src/ingestion/participants.py`** : gère l'insertion des chevaux, jockeys, entraîneurs et la table de liaison `race_participant`.
 *   **`src/ingestion/performances.py`** : gère l'historique de carrière des chevaux (`horse_race_history`). C'est le module le plus critique en termes de volume.
 *   **`src/ingestion/rapports.py`** : gère les résultats de paris (`race_bet`, `bet_report`).
-*   **`etl.py`** : script CLI (Command Line Interface) faisant office de point d'entrée pour lancer les processus.
+*   **`src/cli/etl.py`** : Script CLI (Command Line Interface) faisant office de point d'entrée pour lancer les processus, conçu pour être exécuté manuellement ou via GitHub Actions.
 
 ## 3. Stratégies d'optimisation
 
@@ -57,15 +57,15 @@ Récupère les rapports définitifs pour calculer les cibles d'apprentissage (ga
 
 ## 5. Utilisation via CLI
 
-L'exécution se fait via le script `etl.py` à la racine du projet.
+L'exécution se fait via l'appel du module `src.cli.etl`.
 
 **Exemple d'ingestion complète pour un jour :**
 ```bash
-python etl.py --date 05122025 --type all
+python -m src.cli.etl --date 05122025 --type all
 ```
 
 **Exemple d'ingestion sur une plage de dates (rattrapage historique) :**
 ```bash
-python etl.py --range 01112025 30112025 --type all
+python -m src.cli.etl --range 01112025 30112025 --type all
 ```
 

@@ -1,52 +1,52 @@
-# Projet de prédiction des résultats de courses hippiques
+# Horse Racing Prediction API (PMU)
 
-Ce projet implémente une chaîne de traitement pour l'analyse et la prédiction des courses de trot en France. 
+Ce projet implémente une chaîne de traitement complète pour l'analyse et la prédiction des courses de trot. Il a été refactorisé pour suivre les standards de production (Clean Code, Logging, Typing).
 
-L'architecture est conçue pour être évolutive : elle sert actuellement de socle de données et commence à intégrer les pipelines de préparation pour le Machine Learning.
+L'architecture est modulaire, séparant l'ingestion de données (ETL), la logique Machine Learning (XGBoost) et l'exposition via API (FastAPI).
 
 ## Documentation Technique
 
 Pour une compréhension approfondie du fonctionnement, référez-vous aux documents situés à la racine :
 
-*   **[`01_cahier_des_charges.md`](./01_cahier_des_charges.md)** : Objectifs, périmètre fonctionnel et contraintes.
-*   **[`02_architecturebdd.md`](./02_architecturebdd.md)** : Schéma relationnel SQL, dictionnaire des données et diagramme Mermaid.
-*   **[`04_ingestion_etl.md`](./04_ingestion_etl.md)** : Détails du pipeline d'ingestion, stratégies de cache et gestion des erreurs.
-*   **[`05_preparation_donnes_ml.md`](./05_preparation_donnes_ml.md)** : Méthodologie d'extraction, feature engineering et construction du dataset d'entraînement.
-*   **[`06_api_backend.md`](./06_api_backend.md)** : Documentation de l'API REST, architecture Repository et évolution vers le ML.
+*   **[`01_cahier_des_charges.md`](./01_cahier_des_charges.md)** : Objectifs et périmètre.
+*   **[`02_architecturebdd.md`](./02_architecturebdd.md)** : Schéma SQL et dictionnaire des données.
+*   **[`06_api_backend.md`](./06_api_backend.md)** : Documentation de l'API REST et de l'intégration ML.
 
 ---
 
 ## Architecture Technique
 
-Le projet repose sur une séparation stricte des responsabilités :
+Le projet repose sur une architecture en couches :
 
-1.  **ETL (Extract, Transform, Load)** : Scripts Python orientés objet pour la collecte des données.
-2.  **Base de Données** : PostgreSQL et Supabase.
-3.  **Machine Learning Pipeline** : Scripts dédiés à l'extraction SQL et à la transformation des données (Feature Engineering).
-4.  **API Backend** : FastAPI avec une architecture en couches pour exposer les données.
+1.  **ETL (Extract, Transform, Load)** : Collecte les données hippiques.
+2.  **Core ML** : Pipeline scikit-learn/XGBoost encapsulé (Feature Engineering -> Training -> Inference).
+3.  **API Backend** : FastAPI avec injection de dépendances.
+
+### Arborescence du projet
 
 ```text
 horse-racing-prediction/
-├── failures/               # Stockage temporaire des JSON en erreur (Fallback)
-├── sql/                    # Scripts d'initialisation de la BDD
-├── scripts/                # Pipelines ML & Utilitaires
-│   ├── export.py           # Extraction BDD -> CSV
-│   └── data_preparation.py # Nettoyage & Feature Engineering
+├── data/                   # Stockage des modèles (.pkl) et exports
 ├── src/
-│   ├── api/                # Backend FastAPI
-│   │   ├── main.py         # Points d'entrée (Routes)
-│   │   ├── repositories.py # Accès aux données (SQL)
-│   │   └── schemas.py      # Validation Pydantic (DTOs)
-│   ├── core/               # Configuration et DB
-│   └── ingestion/          # Logique d'ingestion
-├── etl.py                  # Script pour l'ingestion
+│   ├── cli/            # Scripts d'administration et entrypoints
+│   │   └── etl.py          # Orchestrateur d'ingestion 
+│   ├── api/                # COUCHE EXPOSITION (FastAPI)
+│   │   ├── main.py         # Entrypoint, Lifespan & Routes
+│   │   ├── repositories.py # Accès BDD (SQL pur)
+│   │   └── schemas.py      # DTOs Pydantic (Validation)
+│   ├── ml/                 # COUCHE INTELLIGENCE (Machine Learning)
+│   │   ├── features.py     # Feature Engineering (Transformers sklearn)
+│   │   ├── loader.py       # Construction du Dataset (SQL complexe)
+│   │   ├── trainer.py      # Script d'entraînement (XGBoost)
+│   │   └── predictor.py    # Moteur d'inférence (Chargement modèle)
+│   └── core/               # Configuration (Database, Env)
 ├── requirements.txt        # Dépendances Python
 └── .env                    # Variables d'environnement
 ```
 
 ---
 
-## ⚙️ Installation
+## Installation
 
 **1. Cloner le dépôt et installer les dépendances :**
 
@@ -56,15 +56,11 @@ pip install -r requirements.txt
 
 **2. Configurer l'environnement :**
 
-Créez un fichier `.env` à la racine contenant la connexion PostgreSQL à Supabase :
+Créez un fichier `.env` à la racine contenant la connexion PostgreSQL :
 
 ```ini
 DB_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME
 ```
-
-**3. Initialiser la base de données :**
-
-Exécutez le script SQL pour créer les tables :
 
 ---
 
@@ -72,68 +68,58 @@ Exécutez le script SQL pour créer les tables :
 
 ### A. Ingestion des données (ETL)
 
-Le script `etl.py` pilote l'alimentation de la base.
+Le script d'ingestion est situé dans le module `cli` pour faciliter l'automatisation.
 
-**Mise à jour quotidienne (Cron) :**
 ```bash
-# Ingestion complète pour une date spécifique (format JJMMAAAA)
-python etl.py --date 05122025 --type all
+# Exemple : Ingestion pour une date spécifique
+python -m src.cli.etl --date 05122025 --type all
 ```
 
-**Ingestion sur une période donnée :**
+### B. Machine Learning (Entraînement)
+
+Le module `src.ml.trainer` se charge de tout : récupération des données SQL, calcul des features (ratios, historiques), entraînement XGBoost et sauvegarde du modèle.
+
+**Lancer un entraînement :**
 ```bash
-# Ingestion sur une période donnée
-python etl.py --range 01012023 31122023 --type all
+python -m src.ml.trainer
 ```
+*Cela générera le fichier `data/model_xgboost.pkl`.*
 
-### B. Préparation Machine Learning
+### C. API Backend (Prédictions)
 
-Ces scripts transforment les données brutes de la base en un fichier CSV prêt pour l'entraînement des modèles (`dataset_ready_for_ml.csv`).
-
-**1. Extraction des données :**
-Génère les CSV bruts (participants et historique) depuis PostgreSQL.
-```bash
-python scripts/export.py
-```
-
-**2. Feature Engineering :**
-Calcule les agrégats (statistiques historiques, encodage) et nettoie les données.
-```bash
-python scripts/data_preparation.py
-```
-
-### C. API Backend
-
-L'API sert actuellement de couche d'accès aux données et évoluera pour servir les prédictions.
+L'API charge le modèle ML au démarrage (via le `lifespan`) pour servir des prédictions en temps réel.
 
 **Démarrer le serveur :**
 ```bash
 uvicorn src.api.main:app --reload
 ```
 
+**Endpoints Clés :**
+*   `GET /races/{date}` : Récupérer le programme.
+*   `GET /races/{race_id}/participants` : Liste des partants.
+*   `GET /races/{race_id}/predict` : **Génère les probabilités de victoire et le classement prédit.**
+
 **Documentation interactive :**
-Accédez à **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)** pour explorer les endpoints.
+Accédez à **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)**.
 
 ---
 
 ## Roadmap & Avancement
 
 **Phase 1 : Socle de Données (Terminé)**
-- [x] Architecture BDD PostgreSQL
-- [x] Pipeline d'ingestion (ETL) robuste (Gestion erreurs, Retry, Cache RAM)
-- [x] Ingestion historique (Performance & Rapports)
+- [x] Architecture BDD PostgreSQL & Supabase.
+- [x] Pipeline ETL robuste avec gestion d'erreurs.
 
 **Phase 2 : API & Exposition (Terminé)**
-- [x] Backend FastAPI
-- [x] Pattern Repository pour l'accès aux données
-- [x] Documentation automatique
+- [x] Backend FastAPI structuré.
+- [x] Pattern Repository & Schemas Pydantic.
 
-**Phase 3 : Machine Learning (En cours)**
-- [x] Scripts d'extraction des données (SQL -> CSV)
-- [x] Feature Engineering (Calcul statistiques & Encodage)
-- [ ] Entraînement des modèles
-- [ ] Évaluation et sérialisation du meilleur modèle
+**Phase 3 : Machine Learning (Terminé)**
+- [x] **Refactoring Code Pro (English, Typing, Logging).**
+- [x] Feature Engineering avancé (Rangs relatifs, Ratios gains/courses).
+- [x] Pipeline d'entraînement automatisé (`src/ml/trainer.py`).
+- [x] Intégration du modèle dans l'API (`src/ml/predictor.py`).
 
-**Phase 4 : Interface Utilisateur (À venir)**
-- [ ] Intégration du moteur d'inférence dans l'API (`POST /predict`)
-- [ ] Dashboard de visualisation
+**Phase 4 : Interface & Monitoring (À venir)**
+- [ ] Automatisation CI/CD (GitHub Actions) pour l'ETL quotidien.
+- [ ] Dashboard Frontend (Streamlit ou React) pour visualiser les pronostics.

@@ -1,44 +1,70 @@
-# FILE: src/ml/predictor.py
-import pickle
+"""
+Inference module for loading the trained model and generating predictions.
+"""
+import joblib
+import pandas as pd
 import logging
-import random
-from typing import Dict, Any
+from typing import List, Dict, Any, Optional
 
 class RacePredictor:
     """
-    Classe responsable de charger le modèle ML et de faire des prédictions.
-    Pattern: Facade / Adapter.
+    Wrapper around the trained Scikit-Learn/XGBoost pipeline to perform inference.
     """
-    def __init__(self, model_path: str = "data/model_latest.pkl"):
-        self.logger = logging.getLogger("MLPredictor")
-        self.model_path = model_path
-        self.model = self._load_model()
 
-    def _load_model(self):
-        """Essaie de charger un pickle, sinon renvoie None (Mode Mock)"""
+    def __init__(self, model_path: str = "data/model_xgboost.pkl") -> None:
+        """
+        Initializes the predictor and attempts to load the model.
+
+        Args:
+            model_path (str): Path to the serialized .pkl model file.
+        """
+        self.logger = logging.getLogger("ML.Predictor")
+        self.model_path = model_path
+        self.pipeline = self._load_model()
+
+    def _load_model(self) -> Any:
+        """Internal method to safely load the model file."""
         try:
-            with open(self.model_path, "rb") as f:
-                self.logger.info(f"Modèle chargé depuis {self.model_path}")
-                return pickle.load(f)
+            return joblib.load(self.model_path)
         except FileNotFoundError:
-            self.logger.warning(f"⚠️ Modèle non trouvé à {self.model_path}. Mode DÉMO (Mock) activé.")
+            self.logger.error(f"Model file not found at: {self.model_path}")
+            return None
+        except Exception as exc:
+            self.logger.error(f"Error loading model: {exc}")
             return None
 
-    def predict_probability(self, features: Dict[str, Any]) -> float:
+    def predict_race(self, participants: List[Dict[str, Any]]) -> List[float]:
         """
-        Reçoit un dictionnaire de features (ex: {'age': 5, 'driver_id': 12})
-        Retourne une probabilité de gagner (0.0 à 1.0)
+        Predicts winning probabilities for a list of participants in a single race.
+
+        Args:
+            participants (List[Dict[str, Any]]): List of dictionaries containing 
+                raw participant data (as returned by the repository).
+
+        Returns:
+            List[float]: A list of float probabilities (0.0 to 1.0) corresponding 
+                to the input list order. Returns 0.0s on failure.
         """
-        if self.model:
-            # Ici, transformation du dict en array numpy si nécessaire
-            # return self.model.predict_proba([list(features.values())])[0][1]
-            pass
-        
-        # --- MOCK (Simulation pour l'API tant que le modèle n'est pas prêt) ---
-        # Logique bidon : si le cheval a une bonne musique, il a plus de chance
-        musique = features.get("musique", "")
-        base_prob = 0.1
-        if "1a" in musique: base_prob += 0.3
-        if "Da" in musique: base_prob -= 0.05
-        
-        return min(0.95, max(0.01, base_prob + random.uniform(-0.05, 0.05)))
+        if not self.pipeline:
+            self.logger.warning("Attempted prediction with no loaded model.")
+            return [0.0] * len(participants)
+            
+        if not participants:
+            return []
+
+        try:
+            # Convert raw dicts to DataFrame
+            input_dataframe = pd.DataFrame(participants)
+            
+            # The pipeline handles all steps:
+            # 1. PmuFeatureEngineer -> Ratios, Ranks, Missing Values
+            # 2. OrdinalEncoder -> Categorical encoding
+            # 3. XGBoost -> Prediction
+            win_probabilities = self.pipeline.predict_proba(input_dataframe)[:, 1]
+            
+            return win_probabilities.tolist()
+
+        except Exception as exc:
+            self.logger.error(f"Prediction crash: {exc}")
+            # Return safe fallback to prevent API 500
+            return [0.0] * len(participants)

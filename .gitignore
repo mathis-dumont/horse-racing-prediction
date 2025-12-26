@@ -79,9 +79,3 @@ data/
 *.csv
 
 .github/
-
-# Ignore ML models and artifacts
-*.pkl
-*.json
-backend/src/ml/*.pkl
-backend/src/ml/*.json

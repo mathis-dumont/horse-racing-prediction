@@ -1,139 +1,170 @@
-# Projet de prédiction des résultats de courses hippiques
+# Horse Racing Prediction API (PMU)
 
-Ce projet implémente une chaîne de traitement pour l'analyse et la prédiction des courses de trot en France. 
+Ce projet implémente une chaîne de traitement complète pour l'analyse et la prédiction des courses de trot. Il a été refactorisé pour suivre les standards de production modernes, avec une séparation stricte entre le **Backend** (Logique métier, ETL, ML) et le **Frontend** (Interface utilisateur).
 
-L'architecture est conçue pour être évolutive : elle sert actuellement de socle de données et commence à intégrer les pipelines de préparation pour le Machine Learning.
+L'architecture est modulaire :
+- **Backend** : FastAPI, SQLAlchemy/Postgres, XGBoost (Python lourd).
+- **Frontend** : Streamlit (Python léger), consommation via API REST.
 
-## Documentation Technique
+## 📚 Documentation Technique
 
-Pour une compréhension approfondie du fonctionnement, référez-vous aux documents situés à la racine :
+L'ensemble de la documentation détaillée se trouve dans le dossier [`doc/`](./doc/).
 
-*   **[`01_cahier_des_charges.md`](./01_cahier_des_charges.md)** : Objectifs, périmètre fonctionnel et contraintes.
-*   **[`02_architecturebdd.md`](./02_architecturebdd.md)** : Schéma relationnel SQL, dictionnaire des données et diagramme Mermaid.
-*   **[`04_ingestion_etl.md`](./04_ingestion_etl.md)** : Détails du pipeline d'ingestion, stratégies de cache et gestion des erreurs.
-*   **[`05_preparation_donnes_ml.md`](./05_preparation_donnes_ml.md)** : Méthodologie d'extraction, feature engineering et construction du dataset d'entraînement.
-*   **[`06_api_backend.md`](./06_api_backend.md)** : Documentation de l'API REST, architecture Repository et évolution vers le ML.
+**Général & Projet :**
+*   [`00_introduction.md`](./doc/00_introduction.md) : Contexte et vue d'ensemble.
+*   [`01_cahier_des_charges.md`](./doc/01_cahier_des_charges.md) : Objectifs et périmètre fonctionnel.
+*   [`03_planning.md`](./doc/03_planning.md) : Roadmap et suivi des phases.
+
+**Data & Backend :**
+*   [`02_architecture_bdd.md`](./doc/02_architecture_bdd.md) : Modèle de données (SQL) et dictionnaire.
+*   [`04_ingestion.md`](./doc/04_ingestion.md) : Stratégie ETL et sources de données.
+*   [`05_preparation_donnees_ml.md`](./doc/05_preparation_donnees_ml.md) : Feature Engineering et préparation pour le ML.
+*   [`06_api_backend.md`](./doc/06_api_backend.md) : Documentation technique de l'API et des endpoints.
+
+**Interface :**
+*   [`07_frontend.md`](./doc/07_frontend.md) : Architecture de l'application Streamlit.
 
 ---
 
-## Architecture Technique
+## 🏗 Architecture Technique
 
-Le projet repose sur une séparation stricte des responsabilités :
+Le projet est divisé en deux sous-systèmes distincts pour assurer une meilleure maintenabilité et faciliter la conteneurisation (Docker).
 
-1.  **ETL (Extract, Transform, Load)** : Scripts Python orientés objet pour la collecte des données.
-2.  **Base de Données** : PostgreSQL et Supabase.
-3.  **Machine Learning Pipeline** : Scripts dédiés à l'extraction SQL et à la transformation des données (Feature Engineering).
-4.  **API Backend** : FastAPI avec une architecture en couches pour exposer les données.
+### Arborescence du projet
 
 ```text
 horse-racing-prediction/
-├── failures/               # Stockage temporaire des JSON en erreur (Fallback)
-├── sql/                    # Scripts d'initialisation de la BDD
-├── scripts/                # Pipelines ML & Utilitaires
-│   ├── export.py           # Extraction BDD -> CSV
-│   └── data_preparation.py # Nettoyage & Feature Engineering
-├── src/
-│   ├── api/                # Backend FastAPI
-│   │   ├── main.py         # Points d'entrée (Routes)
-│   │   ├── repositories.py # Accès aux données (SQL)
-│   │   └── schemas.py      # Validation Pydantic (DTOs)
-│   ├── core/               # Configuration et DB
-│   └── ingestion/          # Logique d'ingestion
-├── etl.py                  # Script pour l'ingestion
-├── requirements.txt        # Dépendances Python
-└── .env                    # Variables d'environnement
+├── backend/                # COEUR DU SYSTÈME
+│   ├── .env                # Variables d'environnement (BDD)
+│   ├── .venv/              # Environnement virtuel dédié Backend
+│   ├── requirements.txt    # Dépendances (FastAPI, XGBoost, Pandas...)
+│   ├── data/               # Stockage des modèles (.pkl) et exports
+│   └── src/
+│       ├── cli/            # Scripts d'administration (ETL)
+│       ├── api/            # API REST (FastAPI)
+│       ├── ml/             # Pipeline Machine Learning
+│       └── core/           # Config & Database
+│
+├── frontend/               # INTERFACE UTILISATEUR
+│   ├── .venv/              # Environnement virtuel dédié Frontend
+│   ├── requirements.txt    # Dépendances légères (Streamlit, Requests)
+│   ├── main.py             # Entrypoint Dashboard
+│   └── api_client.py       # Connecteur vers le Backend
+│
+├── doc/                    # DOCUMENTATION DU PROJET
+│   ├── 00_introduction.md
+│   ├── ...
+│   └── 07_frontend.md
+│
+└── README.md               # Ce fichier
 ```
 
 ---
 
 ## ⚙️ Installation
 
-**1. Cloner le dépôt et installer les dépendances :**
+Ce projet nécessite **deux terminaux** et **deux environnements virtuels** distincts.
+
+### 1. Configuration du Backend
+
+Ouvrez un terminal et naviguez vers le dossier `backend` :
 
 ```bash
+cd backend
+python -m venv .venv
+
+# Activation (Windows)
+.venv\Scripts\activate
+# Activation (Mac/Linux)
+source .venv/bin/activate
+
+# Installation des dépendances lourdes
 pip install -r requirements.txt
 ```
 
-**2. Configurer l'environnement :**
-
-Créez un fichier `.env` à la racine contenant la connexion PostgreSQL à Supabase :
+**Configuration de la BDD :**
+Créez un fichier `.env` dans le dossier `backend/` :
 
 ```ini
 DB_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME
 ```
 
-**3. Initialiser la base de données :**
+### 2. Configuration du Frontend
 
-Exécutez le script SQL pour créer les tables :
+Ouvrez un **nouveau terminal** et naviguez vers le dossier `frontend` :
+
+```bash
+cd frontend
+python -m venv .venv
+
+# Activation
+# Windows: .venv\Scripts\activate
+# Mac/Linux: source .venv/bin/activate
+
+# Installation des dépendances légères
+pip install -r requirements.txt
+```
 
 ---
 
-## Utilisation
+## 🚀 Utilisation
 
-### A. Ingestion des données (ETL)
+Pour lancer l'application complète, vous devez faire tourner le Backend et le Frontend simultanément.
 
-Le script `etl.py` pilote l'alimentation de la base.
+### A. Terminal 1 : Backend (API & ML)
 
-**Mise à jour quotidienne (Cron) :**
+Assurez-vous d'être dans le dossier `backend/` avec le venv activé.
+
+**1. Ingestion des données (ETL)**
+Le script permet de charger les données historiques nécessaires à l'entraînement.
+
 ```bash
-# Ingestion complète pour une date spécifique (format JJMMAAAA)
-python etl.py --date 05122025 --type all
+# Option A : Ingestion pour une date spécifique
+python -m src.cli.etl --date 05122025 --type all
+
+# Option B : Ingestion pour une plage de dates (du 1er au 31 Janvier 2025)
+python -m src.cli.etl --range 01012025 31012025 --type all
 ```
 
-**Ingestion sur une période donnée :**
+**2. Entraînement du modèle (Machine Learning)**
+Le script récupère les données SQL, génère les features et sauvegarde le modèle dans `backend/data/`.
 ```bash
-# Ingestion sur une période donnée
-python etl.py --range 01012023 31122023 --type all
+python -m src.ml.trainer
 ```
 
-### B. Préparation Machine Learning
-
-Ces scripts transforment les données brutes de la base en un fichier CSV prêt pour l'entraînement des modèles (`dataset_ready_for_ml.csv`).
-
-**1. Extraction des données :**
-Génère les CSV bruts (participants et historique) depuis PostgreSQL.
+**3. Démarrer le serveur API**
 ```bash
-python scripts/export.py
-```
-
-**2. Feature Engineering :**
-Calcule les agrégats (statistiques historiques, encodage) et nettoie les données.
-```bash
-python scripts/data_preparation.py
-```
-
-### C. API Backend
-
-L'API sert actuellement de couche d'accès aux données et évoluera pour servir les prédictions.
-
-**Démarrer le serveur :**
-```bash
+# L'API sera accessible sur http://localhost:8000
 uvicorn src.api.main:app --reload
 ```
 
-**Documentation interactive :**
-Accédez à **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)** pour explorer les endpoints.
+### B. Terminal 2 : Frontend (Dashboard)
+
+Assurez-vous d'être dans le dossier `frontend/` avec le venv activé. Assurez-vous que l'API Backend tourne dans l'autre terminal.
+
+```bash
+# Le dashboard s'ouvrira sur http://localhost:8501
+streamlit run main.py
+```
 
 ---
 
-## Roadmap & Avancement
+## 🗺 Roadmap & Avancement
 
 **Phase 1 : Socle de Données (Terminé)**
-- [x] Architecture BDD PostgreSQL
-- [x] Pipeline d'ingestion (ETL) robuste (Gestion erreurs, Retry, Cache RAM)
-- [x] Ingestion historique (Performance & Rapports)
+- [x] Architecture BDD PostgreSQL.
+- [x] Pipeline ETL robuste avec gestion d'erreurs.
 
 **Phase 2 : API & Exposition (Terminé)**
-- [x] Backend FastAPI
-- [x] Pattern Repository pour l'accès aux données
-- [x] Documentation automatique
+- [x] Backend FastAPI structuré.
+- [x] Pattern Repository & Schemas Pydantic.
 
-**Phase 3 : Machine Learning (En cours)**
-- [x] Scripts d'extraction des données (SQL -> CSV)
-- [x] Feature Engineering (Calcul statistiques & Encodage)
-- [ ] Entraînement des modèles
-- [ ] Évaluation et sérialisation du meilleur modèle
+**Phase 3 : Machine Learning (Terminé)**
+- [x] Feature Engineering avancé.
+- [x] Pipeline d'entraînement automatisé (`src/ml/trainer.py`).
+- [x] Intégration du modèle dans l'API.
 
-**Phase 4 : Interface Utilisateur (À venir)**
-- [ ] Intégration du moteur d'inférence dans l'API (`POST /predict`)
-- [ ] Dashboard de visualisation
+**Phase 4 : Interface & Architecture (En cours)**
+- [x] Dashboard Frontend (Streamlit) connecté à l'API.
+- [ ] Dockerisation (Backend Dockerfile & Frontend Dockerfile).
+- [ ] Automatisation CI/CD (GitHub Actions).

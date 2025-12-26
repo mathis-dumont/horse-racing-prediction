@@ -59,6 +59,7 @@ dump/
 
 # Notebooks imports
 notebooks/.ipynb_checkpoints/
+notebooks/*.ipynb
 
 # Ignore test cache
 .pytest_cache/

@@ -10,6 +10,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from src.api.schemas import RaceSummary, ParticipantSummary, PredictionResult
 from src.api.repositories import RaceRepository
 from src.ml.predictor import RacePredictor
+from pathlib import Path
 
 # Logger Configuration
 logging.basicConfig(
@@ -31,8 +32,11 @@ async def lifespan(app: FastAPI):
     logger.info("LOADING XGBOOST MODEL...")
     try:
         # Ensure the path is correct relative to the execution directory
-        ml_models["predictor"] = RacePredictor("data/model_xgboost.pkl")
-        logger.info("Model loaded successfully.")
+        base_path = Path(__file__).resolve().parent.parent.parent 
+        model_path = base_path / "data" / "model_xgboost.pkl"
+        
+        ml_models["predictor"] = RacePredictor(str(model_path))
+        logger.info(f"Model loaded successfully from {model_path}")
     except Exception as exc:
         logger.error(f"WARNING: Failed to load ML model ({exc}). API will run without predictions.")
         ml_models["predictor"] = None

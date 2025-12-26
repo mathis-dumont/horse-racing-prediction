@@ -1,0 +1,76 @@
+# Fichier requirements.txt pour le projet de prédictions hippiques
+
+# Gestion des variables d'environnement (.env)
+# Permet de charger des variables comme les identifiants de base de données
+# à partir d'un fichier .env pour éviter de les coder en dur.
+python-dotenv==1.0.1
+
+# HTTP requests (pour interroger des APIs externes, par exemple pour récupérer des données hippiques)
+# Bibliothèque standard et robuste pour faire des requêtes HTTP.
+requests==2.32.3
+
+# PostgreSQL connection (driver)
+# Adaptateur Python pour se connecter et interagir avec des bases de données PostgreSQL.
+# La version '-binary' inclut les binaires nécessaires pour une installation plus facile.
+psycopg2-binary==2.9.9
+
+# Data utilities (JSON handling, optional pretty-print)
+# Un module JSON ultra-rapide pour Python, utile pour la sérialisation/désérialisation rapide des données JSON.
+# Particulièrement efficace pour de gros volumes de données ou des applications sensibles à la performance.
+ujson==5.10.0
+
+# Used by future scripts and tests (framework de test)
+# Cadre de test populaire et puissant pour Python, utilisé pour écrire et exécuter des tests unitaires et d'intégration.
+pytest==8.3.2
+
+# Logging improvements (optional but recommended for structured logging)
+# Permet de formater les logs Python en JSON, ce qui est idéal pour l'analyse centralisée des logs
+# dans des outils comme ELK Stack, Splunk, ou pour faciliter le traitement machine des logs.
+python-json-logger==2.0.7
+
+# API Framework
+# Le framework web moderne et rapide (haute performance) pour construire des APIs avec Python 3.8+.
+# Il gère le routing, l'injection de dépendances et la génération de documentation (Swagger UI).
+fastapi==0.110.0
+
+# Data Validation
+# Utilisé par FastAPI pour la validation des données et la sérialisation (les schémas dans schemas.py).
+# Définit les structures de données (BaseModel) et assure le typage strict.
+pydantic==2.7.0
+
+# ASGI Server
+# Le serveur web asynchrone nécessaire pour exécuter l'application FastAPI.
+# La version "standard" inclut les dépendances recommandées (comme uvloop) pour la performance.
+uvicorn[standard]==0.29.0
+
+# Data Analysis & Manipulation
+# Bibliothèque incontournable pour la manipulation et l'analyse de données (DataFrames).
+# Utilisée pour nettoyer, transformer et structurer les données des courses avant ingestion ou prédiction.
+pandas==2.2.2
+
+# High-performance in-memory data & Parquet engine
+# Nécessaire pour optimiser pandas (backend performant) et gérer les formats de fichiers colonnaires (Parquet).
+# Améliore considérablement la vitesse de lecture/écriture et l'efficacité mémoire.
+pyarrow==16.1.0
+
+# SQL Toolkit & ORM
+# Permet d'interagir avec la base de données via des objets Python (ORM) plutôt qu'en SQL pur.
+# Facilite la construction de requêtes complexes et l'abstraction de la base de données.
+sqlalchemy==2.0.32
+
+# Machine Learning
+# Bibliothèque standard pour l'apprentissage automatique (Machine Learning).
+# Contient les algorithmes nécessaires pour entraîner les modèles de prédiction (régression, classification) et évaluer leurs performances.
+scikit-learn==1.5.1
+
+# Gradient Boosting Framework
+# Bibliothèque de gradient boosting évolutive, ultra-rapide et très performante.
+# Le standard pour les données tabulaires structurées, idéal pour maximiser la précision des prédictions de courses.
+xgboost==2.1.1
+
+# Categorical Boosting
+# Algorithme de boosting spécialisé dans la gestion native des variables catégorielles.
+# Permet de traiter efficacement les noms de chevaux, jockeys et hippodromes sans pré-traitement lourd (encodage).
+catboost==1.2.5
+
+# streamlit

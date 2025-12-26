@@ -72,3 +72,5 @@ xgboost==2.1.1
 # Algorithme de boosting spécialisé dans la gestion native des variables catégorielles.
 # Permet de traiter efficacement les noms de chevaux, jockeys et hippodromes sans pré-traitement lourd (encodage).
 catboost==1.2.5
+
+# streamlit

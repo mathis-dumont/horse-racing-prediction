@@ -2,7 +2,7 @@
 
 Ce projet implémente une chaîne de traitement complète pour l'analyse et la prédiction des courses de trot. Il a été refactorisé pour suivre les standards de production (Clean Code, Logging, Typing).
 
-L'architecture est modulaire, séparant l'ingestion de données (ETL), la logique Machine Learning (XGBoost) et l'exposition via API (FastAPI).
+L'architecture est modulaire, séparant l'ingestion de données (ETL), la logique Machine Learning (XGBoost), l'exposition via API (FastAPI) et la visualisation via un Dashboard (Streamlit).
 
 ## Documentation Technique
 
@@ -21,14 +21,18 @@ Le projet repose sur une architecture en couches :
 1.  **ETL (Extract, Transform, Load)** : Collecte les données hippiques.
 2.  **Core ML** : Pipeline scikit-learn/XGBoost encapsulé (Feature Engineering -> Training -> Inference).
 3.  **API Backend** : FastAPI avec injection de dépendances.
+4.  **Frontend** : Interface utilisateur Streamlit pour la visualisation et l'interaction.
 
 ### Arborescence du projet
 
 ```text
 horse-racing-prediction/
 ├── data/                   # Stockage des modèles (.pkl) et exports
+├── frontend/               # INTERFACE UTILISATEUR (Streamlit)
+│   ├── main.py             # Entrypoint Dashboard
+│   └── api_client.py       # Client HTTP pour l'API Backend
 ├── src/
-│   ├── cli/            # Scripts d'administration et entrypoints
+│   ├── cli/                # Scripts d'administration et entrypoints
 │   │   └── etl.py          # Orchestrateur d'ingestion 
 │   ├── api/                # COUCHE EXPOSITION (FastAPI)
 │   │   ├── main.py         # Entrypoint, Lifespan & Routes
@@ -85,22 +89,24 @@ python -m src.ml.trainer
 ```
 *Cela générera le fichier `data/model_xgboost.pkl`.*
 
-### C. API Backend (Prédictions)
+### C. API Backend (Serveur)
 
-L'API charge le modèle ML au démarrage (via le `lifespan`) pour servir des prédictions en temps réel.
+L'API charge le modèle ML au démarrage et sert de backend pour le frontend.
 
-**Démarrer le serveur :**
+**Démarrer le serveur (Port 8000) :**
 ```bash
 uvicorn src.api.main:app --reload
 ```
 
-**Endpoints Clés :**
-*   `GET /races/{date}` : Récupérer le programme.
-*   `GET /races/{race_id}/participants` : Liste des partants.
-*   `GET /races/{race_id}/predict` : **Génère les probabilités de victoire et le classement prédit.**
+### D. Interface Utilisateur (Frontend)
 
-**Documentation interactive :**
-Accédez à **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)**.
+Le dashboard permet de visualiser les courses et de lancer les prédictions de manière interactive. Assurez-vous que l'API Backend tourne en parallèle.
+
+**Lancer le dashboard :**
+```bash
+streamlit run frontend/main.py
+```
+*L'interface sera accessible sur `http://localhost:8501`.*
 
 ---
 
@@ -120,6 +126,7 @@ Accédez à **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)**.
 - [x] Pipeline d'entraînement automatisé (`src/ml/trainer.py`).
 - [x] Intégration du modèle dans l'API (`src/ml/predictor.py`).
 
-**Phase 4 : Interface & Monitoring (À venir)**
-- [ ] Automatisation CI/CD (GitHub Actions) pour l'ETL quotidien.
-- [ ] Dashboard Frontend (Streamlit ou React) pour visualiser les pronostics.
+**Phase 4 : Interface & Monitoring (En cours)**
+- [x] Dashboard Frontend (Streamlit) pour visualiser les pronostics.
+- [ ] Dockerisation complète (Backend + Frontend + DB).
+- [ ] Automatisation CI/CD (GitHub Actions) et CRONs pour l'ETL quotidien.

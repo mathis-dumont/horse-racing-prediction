@@ -2,27 +2,24 @@ import logging
 import requests
 import pandas as pd
 import streamlit as st
-from typing import Optional
+import os
+from typing import List, Dict, Any
 
-# Set up a logger for this module
+# Set up a logger
 logger = logging.getLogger(__name__)
 
-BASE_API_URL = "http://127.0.0.1:8000"
+# CONFIGURATION
+# Try to get the URL from the system (good for Docker/Cloud), fallback to localhost
+BASE_API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def fetch_daily_races(date_code: str) -> pd.DataFrame:
     """
-    Fetches the list of races for a specific date from the API.
-
-    Args:
-        date_code (str): The date formatted as a string (e.g., "DDMMYYYY").
-
-    Returns:
-        pd.DataFrame: A DataFrame containing race information, or an empty DataFrame on failure.
+    Fetches the list of races for a specific date.
     """
     logger.info(f"Fetching races for date code: {date_code}")
     try:
-        response = requests.get(f"{BASE_API_URL}/races/{date_code}")
+        response = requests.get(f"{BASE_API_URL}/races/{date_code}", timeout=5)
         response.raise_for_status()
         data = response.json()
         
@@ -36,21 +33,14 @@ def fetch_daily_races(date_code: str) -> pd.DataFrame:
         logger.error(f"API Error in fetch_daily_races: {e}")
         return pd.DataFrame()
 
-
-@st.cache_data(ttl=600)  # Predictions don't change often once calculated
+@st.cache_data(ttl=600)  # Predictions are static once generated
 def fetch_predictions(race_id: int) -> pd.DataFrame:
     """
     Fetches prediction data for a specific race.
-
-    Args:
-        race_id (int): The unique identifier of the race.
-
-    Returns:
-        pd.DataFrame: A DataFrame containing prediction data, or an empty DataFrame on failure.
     """
     logger.info(f"Fetching predictions for race ID: {race_id}")
     try:
-        response = requests.get(f"{BASE_API_URL}/races/{race_id}/predict")
+        response = requests.get(f"{BASE_API_URL}/races/{race_id}/predict", timeout=10)
         response.raise_for_status()
         data = response.json()
         
@@ -64,21 +54,34 @@ def fetch_predictions(race_id: int) -> pd.DataFrame:
         logger.error(f"API Error in fetch_predictions: {e}")
         return pd.DataFrame()
 
+@st.cache_data(ttl=300)  # Cache sniper bets (odds change, so keep TTL reasonable)
+def get_sniper_bets(date_str: str) -> List[Dict[str, Any]]:
+    """
+    Fetches AI Sniper recommendations for the day.
+    """
+    logger.info(f"Fetching Sniper bets for: {date_str}")
+    try:
+        # FIX: Removed 'self', using global BASE_API_URL
+        response = requests.get(f"{BASE_API_URL}/bets/sniper/{date_str}", timeout=10)
+        
+        if response.status_code == 200:
+            return response.json() # Returns a list of dicts
+        
+        logger.warning(f"Sniper API returned status: {response.status_code}")
+        return []
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"API Error in get_sniper_bets: {e}")
+        return []
 
 @st.cache_data(ttl=300)
 def fetch_participants(race_id: int) -> pd.DataFrame:
     """
-    Fetches raw participant details (supplementary info like drivers, odds) for a race.
-
-    Args:
-        race_id (int): The unique identifier of the race.
-
-    Returns:
-        pd.DataFrame: A DataFrame containing participant details.
+    Fetches raw participant details (drivers, odds, etc.).
     """
     logger.debug(f"Fetching participants for race ID: {race_id}")
     try:
-        response = requests.get(f"{BASE_API_URL}/races/{race_id}/participants")
+        response = requests.get(f"{BASE_API_URL}/races/{race_id}/participants", timeout=5)
         response.raise_for_status()
         return pd.DataFrame(response.json())
     except requests.exceptions.RequestException as e:

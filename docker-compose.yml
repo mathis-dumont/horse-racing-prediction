@@ -1,0 +1,22 @@
+services:
+  # 1. Backend API Service
+  backend:
+    build: ./backend
+    container_name: pmu_backend
+    environment:
+      # Variable stored in the .env
+      - DB_URL=${DB_URL}
+    ports:
+      - "8000:8000"
+    
+
+  # 2. Frontend UI Service
+  frontend:
+    build: ./frontend
+    container_name: pmu_frontend
+    depends_on:
+      - backend
+    environment:
+      - API_URL=http://backend:8000
+    ports:
+      - "8501:8501"

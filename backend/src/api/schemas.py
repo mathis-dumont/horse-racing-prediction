@@ -12,6 +12,7 @@ class RaceSummary(BaseModel):
     discipline: Optional[str] = None
     distance_m: Optional[int] = None
     racetrack_code: Optional[str] = None
+    name: Optional[str] = None
 
 class ParticipantSummary(BaseModel):
     """Schema representing a participant in a race (basic details)."""
@@ -27,3 +28,13 @@ class PredictionResult(BaseModel):
     horse_name: str
     win_probability: float
     predicted_rank: int
+    
+class BetRecommendation(BaseModel):
+    race_id: int
+    race_num: int
+    horse_name: str
+    pmu_number: int
+    odds: float
+    win_probability: float
+    edge: float
+    strategy: str = "Sniper"

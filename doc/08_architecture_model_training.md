@@ -1,5 +1,3 @@
-Voici la traduction technique de la documentation pour votre projet.
-
 ---
 
 # Architecture du Modèle et Documentation de l'Entraînement

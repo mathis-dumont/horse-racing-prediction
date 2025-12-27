@@ -7,3 +7,6 @@ pandas
 scikit-learn
 xgboost
 joblib
+pytest
+httpx
+pytest-mock

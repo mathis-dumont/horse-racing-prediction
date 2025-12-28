@@ -6,14 +6,13 @@ from typing import List, Dict, Any, Union
 
 class RacePredictor:
     """
-    Module d'inférence simplifié.
-    Charge le Pipeline complet (Feature Engineering -> Preprocessing -> Calibration).
-    Plus besoin de gérer manuellement les catégories ou les artefacts.
+    Simplified inference module.
+    Loads the complete Pipeline (Feature Engineering -> Preprocessing -> Calibration).
     """
 
     def __init__(self, model_path: str = "data/model_calibrated.pkl") -> None:
         """
-        Initialise le prédicteur en chargeant le pipeline sérialisé.
+        Initializes the predictor by loading the serialized pipeline.
         """
         self.logger = logging.getLogger("ML.Predictor")
         self.model_path = model_path
@@ -22,53 +21,52 @@ class RacePredictor:
         self._load_model()
 
     def _load_model(self) -> None:
-        """Charge le fichier unique contenant tout le pipeline."""
+        """Loads the single file containing the entire pipeline."""
         try:
-            self.logger.info(f"Chargement du modèle depuis {self.model_path}...")
-            # joblib est souvent plus efficace que pickle pour les gros objets numpy/sklearn
+            self.logger.info(f"Loading model from {self.model_path}...")
             self.pipeline = joblib.load(self.model_path)
-            self.logger.info("Modèle chargé avec succès.")
+            self.logger.info("Model loaded successfully.")
         except FileNotFoundError:
-            self.logger.error(f"Fichier modèle introuvable : {self.model_path}")
+            self.logger.error(f"Model file not found: {self.model_path}")
         except Exception as exc:
-            self.logger.error(f"Erreur critique lors du chargement du modèle : {exc}")
+            self.logger.error(f"Critical error loading model: {exc}")
 
     def predict_race(self, participants: List[Dict[str, Any]]) -> List[float]:
         """
-        Prédit les probabilités de victoire pour une liste de participants bruts (venant de l'API/DB).
+        Predicts win probabilities for a list of raw participants (from API/DB).
 
         Args:
-            participants: Liste de dictionnaires contenant les données brutes 
-                          (ex: {'program_date': '2023...', 'career_winnings': 5000, ...})
+            participants: List of dictionaries containing raw data 
+                          (e.g., {'program_date': '2023...', 'career_winnings': 5000, ...})
 
         Returns:
-            List[float]: Probabilités calibrées (entre 0.0 et 1.0).
+            List[float]: Calibrated probabilities (between 0.0 and 1.0).
         """
         if not self.pipeline:
-            self.logger.warning("Tentative de prédiction sans modèle chargé.")
+            self.logger.warning("Attempted prediction without a loaded model.")
             return [0.0] * len(participants)
 
         if not participants:
             return []
 
         try:
-            # 1. Conversion en DataFrame
-            # Le pipeline s'attend à recevoir les colonnes brutes (il fera le nettoyage lui-même)
+            # 1. Convert to DataFrame
+            # The pipeline expects raw columns (it will handle cleaning itself)
             df = pd.DataFrame(participants)
 
-            # 2. Prédictions
-            # Le pipeline exécute dans l'ordre :
-            #   a. PmuFeatureEngineer.transform() -> Calcule les ratios, gère les dates
-            #   b. ColumnTransformer -> Encode les catégories (gère les inconnus automatiquement)
-            #   c. CalibratedClassifierCV -> Predit la probabilité réelle
+            # 2. Predictions
+            # The pipeline executes in order:
+            #   a. PmuFeatureEngineer.transform() -> Calculates ratios, handles dates
+            #   b. ColumnTransformer -> Encodes categories (handles unknowns automatically)
+            #   c. CalibratedClassifierCV -> Predicts actual probability
             
-            # predict_proba renvoie une matrice (N_samples, 2). La colonne 1 est la classe "Winner"
+            # predict_proba returns a matrix (N_samples, 2). Column 1 is the "Winner" class
             probabilities = self.pipeline.predict_proba(df)[:, 1]
 
-            # Conversion explicite en liste de float natifs pour JSON serialization facile
+            # Explicit conversion to native float list for easy JSON serialization
             return probabilities.tolist()
 
         except Exception as exc:
-            self.logger.error(f"Erreur lors de la prédiction : {exc}")
-            # En cas de crash (colonne manquante critique), on renvoie des zéros pour ne pas casser l'API
+            self.logger.error(f"Error during prediction: {exc}")
+            # In case of crash (critical missing column), return zeros to avoid breaking the API
             return [0.0] * len(participants)

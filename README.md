@@ -109,25 +109,51 @@ pip install -r requirements.txt
 
 ## 🚀 Utilisation
 
-Pour lancer l'application complète, vous devez faire tourner le Backend et le Frontend simultanément.
+Voici le guide complet, étape par étape, pour lancer ce projet de zéro en utilisant Docker.
 
-### A. Terminal 1 : Backend (API & ML)
+### 1. Démarrer l'Infrastructure
 
-Assurez-vous d'être dans le dossier `backend/` avec le venv activé.
-
-**1. Ingestion des données (ETL)**
-Le script permet de charger les données historiques nécessaires à l'entraînement.
+Ouvrez votre terminal à la racine du projet et exécutez :
 
 ```bash
-# Option A : Ingestion pour une date spécifique
-python -m src.cli.etl --date 05122025 --type all
+docker compose up --build
 
-# Option B : Ingestion pour une plage de dates (du 1er au 31 Janvier 2025)
-python -m src.cli.etl --range 01012025 31012025 --type all
 ```
 
+* **Attendez** que le défilement des logs se stabilise et que vous voyiez des messages indiquant que la Base de données, le Backend et le Frontend sont prêts (ex: `Uvicorn running`, `database system is ready to accept connections`).
+* **Gardez ce terminal ouvert.** Il affiche les journaux (logs) du serveur.
+
+---
+
+### 2. Peupler la Base de Données (Crucial)
+
+La base de données Docker démarre vide. Nous devons injecter les données des courses d'aujourd'hui.
+
+1. Ouvrez un **Second Terminal**.
+2. Exécutez le script ETL **à l'intérieur** du conteneur backend actif (ajustez la date à aujourd'hui, **28122025**) :
+
+```bash
+docker exec -it pmu_backend python -m src.cli.etl --date 28122025 --type all
+
+```
+
+* **Attendez** de voir le message : `INFO | ORCHESTRATOR | All jobs completed.`
+
+---
+
+### 3. Utiliser l'Application
+
+Tout est maintenant opérationnel.
+
+* **Frontend (Dashboard) :** [http://localhost:8501](https://www.google.com/search?q=http://localhost:8501)
+* *Action :* Sélectionnez **2025/12/28** dans la barre latérale. Vérifiez la présence des recommandations "Sniper" en haut de page.
+
+
+* **Backend (Documentation API) :** [http://localhost:8000/docs](https://www.google.com/search?q=http://localhost:8000/docs)
+* *Action :* Utilisez `GET /` pour vérifier si le `ml_engine` est bien chargé.
+
 **2. Entraînement du modèle (Machine Learning)**
-Le script récupère les données SQL, génère les features et sauvegarde le modèle dans `backend/data/`.
+Le script récupère les données SQL, génère les features et sauvegarde le modèle dans `backend/ml/`.
 ```bash
 python -m src.ml.trainer
 ```

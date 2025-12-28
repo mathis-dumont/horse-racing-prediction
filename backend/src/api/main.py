@@ -6,7 +6,9 @@ from typing import List, Dict, Optional
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, status
+import pandas as pd # Ensure pandas is imported
+
 from src.api.schemas import RaceSummary, ParticipantSummary, PredictionResult, BetRecommendation
 from src.api.repositories import RaceRepository
 from src.ml.predictor import RacePredictor
@@ -33,15 +35,15 @@ async def lifespan(app: FastAPI):
     """
     logger.info("LOADING ML PIPELINE...")
     try:
-        # CORRECTION DU PATH : On pointe vers data/model_calibrated.pkl
+        # PATH Points to data/model_calibrated.pkl
         current_file = Path(__file__).resolve()
-        project_root = current_file.parent.parent.parent # remonte de src/api/ -> root
+        project_root = current_file.parent.parent.parent
         model_path = project_root / "data" / "model_calibrated.pkl"
         
-        # On passe le chemin sous forme de string au Predictor
+        # Pass the path as a string to the Predictor
         ml_models["predictor"] = RacePredictor(str(model_path))
         
-        # Petit check de santé du pipeline interne
+        # Small health check of the internal pipeline
         if ml_models["predictor"].pipeline:
             logger.info(f"Model loaded successfully from {model_path}")
         else:
@@ -74,68 +76,69 @@ def get_races(date_code: str, repository: RaceRepository = Depends(get_repositor
 def get_race_participants(race_id: int, repository: RaceRepository = Depends(get_repository)):
     return repository.get_participants_by_race(race_id)
 
-# Dans src/api/main.py
-
-import pandas as pd # Assure-toi d'avoir importé pandas
 
 @app.get("/bets/sniper/{date_code}", response_model=List[BetRecommendation])
 def get_sniper_bets(date_code: str, repository: RaceRepository = Depends(get_repository)):
-    """
-    VERSION OPTIMISÉE (BATCH): Scan toutes les courses en un coup.
-    """
+    # 1. Check Model Availability
     predictor = ml_models.get("predictor")
-    if not predictor or not predictor.pipeline:
-        raise HTTPException(status_code=503, detail="ML Model not loaded.")
+    if not predictor:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
+            detail="ML Model is strictly required for betting calculations."
+        )
 
-    # 1. Récupération massive (1 seule requête SQL)
+    # 2. Data Retrieval
     raw_participants = repository.get_daily_data_for_ml(date_code)
-    
     if not raw_participants:
         return []
 
-    # 2. Prédiction massive (Vectorisée)
-    # Le modèle prédit 1000 chevaux d'un coup en une fraction de seconde
-    probs = predictor.predict_race(raw_participants)
+    # 3. Vectorized Prediction
+    try:
+        # Assuming predict_race handles the list of dicts correctly
+        probs = predictor.predict_race(raw_participants)
+    except Exception as e:
+        logger.error(f"Prediction failure: {e}")
+        raise HTTPException(status_code=500, detail="Inference engine failed.")
 
-    # 3. Assemblage et Analyse (en mémoire)
-    # On crée un DataFrame temporaire pour manipuler facilement les groupes
+    # 4. DataFrame Construction
     df = pd.DataFrame(raw_participants)
     df['win_probability'] = probs
-    
-    # Gestion sécurisée des cotes manquantes ou nulles
-    df['reference_odds'] = df['reference_odds'].fillna(10.0)
-    df.loc[df['reference_odds'] <= 1.0, 'reference_odds'] = 1.1 # Sécurité division par zéro
-    
+
+    # Clean Odds: Replace 0 or NaN with 1.1 (basically impossible to win, to avoid 1/0 error)
+    df['reference_odds'] = df['reference_odds'].fillna(1.0)
+    df['reference_odds'] = df['reference_odds'].clip(lower=1.05)
+
+    # Vectorized Math
     df['implied_prob'] = 1 / df['reference_odds']
     df['edge'] = df['win_probability'] - df['implied_prob']
 
-    recommendations = []
+    # Filter Strategy (Vectorized Filtering is faster than iterating)
+    sniper_filter = (
+        (df['edge'] >= MIN_EDGE) & 
+        (df['reference_odds'] >= MIN_ODDS) & 
+        (df['reference_odds'] <= MAX_ODDS)
+    )
+    
+    candidates = df[sniper_filter].copy()
 
-    # 4. GroupBy Race ID pour trouver le meilleur cheval de chaque course
-    for race_id, group in df.groupby('race_id'):
-        # On trie par probabilité décroissante
-        sorted_group = group.sort_values('win_probability', ascending=False)
+    recommendations = []
+    
+    # Select best horse per race from the filtered candidates
+    # We group by race_id and take the one with the highest edge
+    # (Alternatively, you can take the one with highest win_probability)
+    for race_id, group in candidates.groupby('race_id'):
+        best_bet = group.sort_values('win_probability', ascending=False).iloc[0]
         
-        if sorted_group.empty:
-            continue
-            
-        # On prend le top 1
-        top_pick = sorted_group.iloc[0]
-        
-        # Filtres Stratégie Sniper
-        if (top_pick['edge'] > MIN_EDGE and 
-            MIN_ODDS <= top_pick['reference_odds'] < MAX_ODDS):
-            
-            recommendations.append({
-                "race_id": int(top_pick['race_id']), # Conversion int importante pour Pydantic
-                "race_num": int(top_pick['race_number']),
-                "horse_name": top_pick['horse_name'],
-                "pmu_number": int(top_pick['pmu_number']),
-                "odds": float(top_pick['reference_odds']),
-                "win_probability": float(top_pick['win_probability']),
-                "edge": float(top_pick['edge']),
-                "strategy": "Sniper"
-            })
+        recommendations.append({
+            "race_id": int(best_bet['race_id']),
+            "race_num": int(best_bet['race_number']),
+            "horse_name": best_bet['horse_name'],
+            "pmu_number": int(best_bet['pmu_number']),
+            "odds": float(best_bet['reference_odds']),
+            "win_probability": float(best_bet['win_probability']),
+            "edge": float(best_bet['edge']),
+            "strategy": "Sniper"
+        })
 
     return recommendations
 
@@ -167,5 +170,5 @@ def predict_race(race_id: int, repository: RaceRepository = Depends(get_reposito
     results.sort(key=lambda x: x["win_probability"], reverse=True)
     for rank, res in enumerate(results, 1):
         res["predicted_rank"] = rank
-
+        
     return results

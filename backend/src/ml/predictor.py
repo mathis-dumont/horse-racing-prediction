@@ -1,130 +1,74 @@
-"""
-Inference module for loading the calibrated XGBoost model and generating predictions.
-Handles feature synchronization using training artifacts.
-"""
-import pickle
+import joblib
+import logging
 import pandas as pd
 import numpy as np
-import logging
-from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Union
 
 class RacePredictor:
     """
-    Wrapper around the CalibratedClassifierCV (XGBoost + Isotonic) 
-    that handles feature alignment and categorical synchronization.
+    Module d'inférence simplifié.
+    Charge le Pipeline complet (Feature Engineering -> Preprocessing -> Calibration).
+    Plus besoin de gérer manuellement les catégories ou les artefacts.
     """
 
-    def __init__(self, model_path: str) -> None:
+    def __init__(self, model_path: str = "data/model_calibrated.pkl") -> None:
         """
-        Initializes the predictor, loads the calibrator and the artifacts.
-
-        Args:
-            model_path (str): Path to 'probability_calibrator.pkl'. 
-                              It assumes 'model_artifacts.pkl' is in the same directory.
+        Initialise le prédicteur en chargeant le pipeline sérialisé.
         """
         self.logger = logging.getLogger("ML.Predictor")
-        self.model_path = Path(model_path)
-        self.artifacts_path = self.model_path.parent / "model_artifacts.pkl"
+        self.model_path = model_path
+        self.pipeline = None
         
-        self.calibrator = None
-        self.artifacts = None
-        
-        self._load_system()
+        self._load_model()
 
-    def _load_system(self) -> None:
-        """Internal method to load both the Pickle model and the Artifacts dictionary."""
+    def _load_model(self) -> None:
+        """Charge le fichier unique contenant tout le pipeline."""
         try:
-            # 1. Load Calibrator
-            if not self.model_path.exists():
-                self.logger.error(f"Model file missing: {self.model_path}")
-                return
-
-            with open(self.model_path, "rb") as f:
-                self.calibrator = pickle.load(f)
-            
-            # 2. Load Artifacts
-            if not self.artifacts_path.exists():
-                self.logger.error(f"Artifacts file missing: {self.artifacts_path}")
-                return
-
-            with open(self.artifacts_path, "rb") as f:
-                self.artifacts = pickle.load(f)
-                
-            self.logger.info(f"ML System loaded successfully (Features: {len(self.artifacts['features'])})")
-
+            self.logger.info(f"Chargement du modèle depuis {self.model_path}...")
+            # joblib est souvent plus efficace que pickle pour les gros objets numpy/sklearn
+            self.pipeline = joblib.load(self.model_path)
+            self.logger.info("Modèle chargé avec succès.")
+        except FileNotFoundError:
+            self.logger.error(f"Fichier modèle introuvable : {self.model_path}")
         except Exception as exc:
-            self.logger.error(f"Critical Error loading ML system: {exc}")
-            self.calibrator = None
-            self.artifacts = None
-
-    def _prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Aligns the input DataFrame with the training requirements.
-        - Fills missing columns with NaN.
-        - Orders columns correctly.
-        - Synchronizes Categorical types (handling unseen values).
-        """
-        features = self.artifacts['features']
-        known_cats = self.artifacts['categories']
-        
-        # 1. Ensure all required columns exist
-        missing = [f for f in features if f not in df.columns]
-        if missing:
-            # Create missing columns with NaN to prevent crash
-            for col in missing:
-                df[col] = np.nan
-        
-        # 2. Reorder columns to match training exactly
-        X = df[features].copy()
-        
-        # 3. Synchronize Categories (The Anti-Crash Logic)
-        for col, categories in known_cats.items():
-            if col in X.columns:
-                # Force column to category dtype
-                X[col] = X[col].astype('category')
-                # Force strict categories (Unseen values -> NaN)
-                X[col] = X[col].cat.set_categories(categories)
-        
-        return X
+            self.logger.error(f"Erreur critique lors du chargement du modèle : {exc}")
 
     def predict_race(self, participants: List[Dict[str, Any]]) -> List[float]:
         """
-        Predicts winning probabilities for a list of participants.
+        Prédit les probabilités de victoire pour une liste de participants bruts (venant de l'API/DB).
 
         Args:
-            participants: List of dicts (raw data from DB).
+            participants: Liste de dictionnaires contenant les données brutes 
+                          (ex: {'program_date': '2023...', 'career_winnings': 5000, ...})
 
         Returns:
-            List of probabilities (0.0 to 1.0).
+            List[float]: Probabilités calibrées (entre 0.0 et 1.0).
         """
-        # Safety Checks
-        if not self.calibrator or not self.artifacts:
-            self.logger.warning("Prediction attempted with unloaded model.")
+        if not self.pipeline:
+            self.logger.warning("Tentative de prédiction sans modèle chargé.")
             return [0.0] * len(participants)
-            
+
         if not participants:
             return []
 
         try:
-            # 1. Convert to DataFrame
-            input_df = pd.DataFrame(participants)
+            # 1. Conversion en DataFrame
+            # Le pipeline s'attend à recevoir les colonnes brutes (il fera le nettoyage lui-même)
+            df = pd.DataFrame(participants)
+
+            # 2. Prédictions
+            # Le pipeline exécute dans l'ordre :
+            #   a. PmuFeatureEngineer.transform() -> Calcule les ratios, gère les dates
+            #   b. ColumnTransformer -> Encode les catégories (gère les inconnus automatiquement)
+            #   c. CalibratedClassifierCV -> Predit la probabilité réelle
             
-            # 2. Preprocess (Sync categories & columns)
-            processed_df = self._prepare_features(input_df)
-            
-            # 3. Predict (Index 1 is the probability of Class 1 aka 'Winner')
-            # CalibratedClassifierCV returns [Prob_Loss, Prob_Win]
-            win_probabilities = self.calibrator.predict_proba(processed_df)[:, 1]
-            
-            return win_probabilities.tolist()
+            # predict_proba renvoie une matrice (N_samples, 2). La colonne 1 est la classe "Winner"
+            probabilities = self.pipeline.predict_proba(df)[:, 1]
+
+            # Conversion explicite en liste de float natifs pour JSON serialization facile
+            return probabilities.tolist()
 
         except Exception as exc:
-            self.logger.error(f"Prediction Runtime Error: {exc}")
-            # Fallback to 0.0 on error to keep API alive
+            self.logger.error(f"Erreur lors de la prédiction : {exc}")
+            # En cas de crash (colonne manquante critique), on renvoie des zéros pour ne pas casser l'API
             return [0.0] * len(participants)
-
-    @property
-    def pipeline(self):
-        """Property to maintain compatibility with legacy checks in main.py"""
-        return self.calibrator

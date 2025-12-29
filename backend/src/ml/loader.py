@@ -2,7 +2,7 @@ import os
 import logging
 import pandas as pd
 from sqlalchemy import create_engine, Engine
-from dotenv import load_dotenv
+from src.core.config import DB_URL 
 
 class DataLoader:
     """
@@ -14,14 +14,13 @@ class DataLoader:
         """
         Initializes the database connection using environment variables.
         """
-        load_dotenv()  # Load variables from .env
+
         self.logger = logging.getLogger("ML.Loader")
         
-        db_url = os.getenv("DB_URL")
-        if not db_url:
+        if not DB_URL:
             raise ValueError("DB_URL is missing in the .env file")
             
-        self.engine: Engine = create_engine(db_url)
+        self.engine: Engine = create_engine(DB_URL)
 
     def get_training_data(self) -> pd.DataFrame:
         """

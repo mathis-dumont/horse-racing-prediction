@@ -80,10 +80,10 @@ C'est la méthode recommandée pour déployer l'application localement.
 
 ### 1. Configuration (Secrets)
 Le projet se connecte à une base de données persistante (Supabase).
-Créez un fichier `.env` dans le dossier `backend/` :
+Créez un fichier `.env` dans la racine du projet :
 
 ```ini
-# backend/.env
+# ./.env
 DB_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME
 ```
 
@@ -98,13 +98,21 @@ Cela démarre l'API Backend et le Frontend.
 * **Attendez** que le défilement des logs se stabilise et que vous voyiez des messages indiquant que la Base de données, le Backend et le Frontend sont prêts (ex: `Uvicorn running`, `database system is ready to accept connections`).
 * **Gardez ce terminal ouvert.** Il affiche les journaux (logs) du serveur.
 
+### 3. Entraînement Initial (Premier Lancement)
+Si c'est la première fois que vous lancez le projet et que le modèle (`.pkl`) n'existe pas encore, générez-le directement à l'intérieur du conteneur :
+
+```bash
+docker exec -it pmu_backend python -m src.ml.trainer
+```
+*Cette commande va créer le fichier modèle dans le conteneur, et grâce au volume configuré (`./backend/data:/app/data`), le fichier sera sauvegardé sur votre machine.*
+
 ---
 
 ### 3. Mise à jour manuelle (Optionnel)
-Si vous souhaitez forcer une récupération des données immédiatement sans attendre le workflow automatique :
+Si vous souhaitez forcer une récupération des données sur un certain jour :
 
 ```bash
-# Exemple : Récupérer les données du jour (29/12/2025)
+# Exemple : Récupérer les données d'un jour (29/12/2025)
 docker exec -it pmu_backend python -m src.cli.etl --date 29122025 --type all
 ```
 
@@ -140,14 +148,23 @@ Pour le développement sans Docker.
 ### Partie 1 : Backend
 
 1.  Configurer `backend/.env` avec votre `DB_URL`.
-2.  Installer et lancer :
+2.  Installer les dépendances :
     ```bash
     cd backend
     python -m venv .venv
     source .venv/bin/activate  # ou .venv\Scripts\activate (Windows)
     pip install -r requirements.txt
-    
-    # Lancement API
+    ```
+
+3.  **Entraînement Initial (Premier Lancement)**
+    Cette étape est **nécessaire la première fois** pour créer le fichier modèle (`.pkl`) utilisé par l'API pour les prédictions :
+    ```bash
+    # Assurez-vous d'être dans le dossier backend/
+    python3 -m src.ml.trainer
+    ```
+
+4.  Lancer l'API :
+    ```bash
     uvicorn src.api.main:app --reload
     ```
 

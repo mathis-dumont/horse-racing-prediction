@@ -5,39 +5,47 @@ from src.core.config import PROGRAMME_URL_TEMPLATE, HEADERS, STATUS_MAP, TRACK_M
 from src.ingestion.base import BaseIngestor
 
 class ProgramIngestor(BaseIngestor):
+    """
+    Ingests the daily race program, including meetings (reunions) and races (courses).
+    """
+
     def fetch_programme_json(self) -> dict:
+        """Fetches the full program JSON for the specific date."""
         url = PROGRAMME_URL_TEMPLATE.format(date_code=self.date_code)
         self.logger.info("Fetching programme JSON from %s", url)
         session = self._get_http_session()
         try:
-            resp = session.get(url, headers=HEADERS, timeout=30)
-            resp.raise_for_status()
-            return resp.json()
+            response = session.get(url, headers=HEADERS, timeout=30)
+            response.raise_for_status()
+            return response.json()
         except requests.exceptions.RequestException as e:
             self.logger.error("CRITICAL: Failed to fetch programme: %s", e)
             raise e
 
-    def _insert_daily_program(self, cur, program_date: dt.date) -> int:
-        cur.execute(
+    def _insert_daily_program(self, cursor, program_date: dt.date) -> int:
+        """Inserts the daily program record and returns its ID."""
+        cursor.execute(
             """
             INSERT INTO daily_program (program_date) VALUES (%s)
             ON CONFLICT (program_date) DO NOTHING RETURNING program_id;
             """,
             (program_date,)
         )
-        row = cur.fetchone()
-        if row: return row[0]
-        cur.execute("SELECT program_id FROM daily_program WHERE program_date = %s", (program_date,))
-        return cur.fetchone()[0]
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        cursor.execute("SELECT program_id FROM daily_program WHERE program_date = %s", (program_date,))
+        return cursor.fetchone()[0]
 
-    def _insert_race_meeting(self, cur, program_id: int, reunion: dict) -> int:
-        num_officiel = reunion.get("numOfficiel")
-        meeting_type = self._safe_truncate("meeting_type", reunion.get("nature"), 50)
-        racetrack_code = self._safe_truncate("racetrack_code", (reunion.get("hippodrome") or {}).get("code"), 10)
-        temp = (reunion.get("meteo") or {}).get("temperature")
-        wind = (reunion.get("meteo") or {}).get("directionVent")
+    def _insert_race_meeting(self, cursor, program_id: int, meeting_data: dict) -> int:
+        """Inserts a race meeting (Reunion) and returns its ID."""
+        num_officiel = meeting_data.get("numOfficiel")
+        meeting_type = self._safe_truncate("meeting_type", meeting_data.get("nature"), 50)
+        racetrack_code = self._safe_truncate("racetrack_code", (meeting_data.get("hippodrome") or {}).get("code"), 10)
+        temp = (meeting_data.get("meteo") or {}).get("temperature")
+        wind = (meeting_data.get("meteo") or {}).get("directionVent")
 
-        cur.execute(
+        cursor.execute(
             """
             INSERT INTO race_meeting (
                 program_id, meeting_number, meeting_type, 
@@ -49,42 +57,46 @@ class ProgramIngestor(BaseIngestor):
             """,
             (program_id, num_officiel, meeting_type, racetrack_code, temp, wind),
         )
-        row = cur.fetchone()
-        if row: return row[0]
-        cur.execute(
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        cursor.execute(
             "SELECT meeting_id FROM race_meeting WHERE program_id = %s AND meeting_number = %s",
             (program_id, num_officiel)
         )
-        return cur.fetchone()[0]
+        return cursor.fetchone()[0]
 
-    def _insert_race(self, cur, meeting_id: int, course: dict):
-        race_number = course.get("numOrdre")
-        raw_status = course.get("statut")
+    def _insert_race(self, cursor, meeting_id: int, race_data: dict):
+        """Inserts a single race record."""
+        race_number = race_data.get("numOrdre")
+        raw_status = race_data.get("statut")
         race_status = STATUS_MAP.get(raw_status, raw_status[:10] if raw_status else None)
-        raw_track = course.get("typePiste")
+        raw_track = race_data.get("typePiste")
         track_type = TRACK_MAP.get(raw_track, raw_track[:10] if raw_track else None)
 
-        discipline = self._safe_truncate("discipline", course.get("discipline"), 20)
-        race_status_category = self._safe_truncate("race_status_category", course.get("categorieStatut"), 50)
-        race_category = course.get("categorieParticularite")
-        distance_m = course.get("distance")
+        discipline = self._safe_truncate("discipline", race_data.get("discipline"), 20)
+        race_status_category = self._safe_truncate("race_status_category", race_data.get("categorieStatut"), 50)
+        race_category = race_data.get("categorieParticularite")
+        distance_m = race_data.get("distance")
         
-        penetrometre = course.get("penetrometre") or {}
+        penetrometre = race_data.get("penetrometre") or {}
         raw_val = penetrometre.get("valeurMesure")
         terrain_label = penetrometre.get("intitule")
         penetrometer_value = None
         if raw_val is not None:
             try:
+                # Handle comma decimal separator often found in French data
                 penetrometer_value = float(str(raw_val).replace(",", "."))
             except (ValueError, TypeError):
                 pass
 
-        declared_runners = course.get("nombreDeclaresPartants")
-        conditions = course.get("conditions")
-        duration_raw = course.get("dureeCourse")
+        declared_runners = race_data.get("nombreDeclaresPartants")
+        conditions = race_data.get("conditions")
+        duration_raw = race_data.get("dureeCourse")
+        # Convert milliseconds to seconds
         race_duration_s = int(duration_raw) // 1000 if duration_raw else None
 
-        cur.execute(
+        cursor.execute(
             """
             INSERT INTO race (
                 meeting_id, race_number, discipline, race_category,
@@ -104,6 +116,7 @@ class ProgramIngestor(BaseIngestor):
         )
 
     def ingest(self):
+        """Main entry point for program ingestion."""
         self.logger.info("Starting PROGRAMME ingestion for date=%s", self.date_code)
         try:
             data = self.fetch_programme_json()
@@ -135,19 +148,19 @@ class ProgramIngestor(BaseIngestor):
         conn = self.db_manager.get_connection()
         try:
             with conn:
-                with conn.cursor() as cur:
-                    program_id = self._insert_daily_program(cur, program_date)
-                    reunions = programme.get("reunions", [])
-                    self.logger.info("Found %d meetings.", len(reunions))
+                with conn.cursor() as cursor:
+                    program_id = self._insert_daily_program(cursor, program_date)
+                    meetings = programme.get("reunions", [])
+                    self.logger.info("Found %d meetings.", len(meetings))
                     
                     count_races = 0
-                    for reunion in reunions:
-                        meeting_id = self._insert_race_meeting(cur, program_id, reunion)
-                        courses = reunion.get("courses", [])
-                        for course in courses:
-                            discipline = course.get("discipline", "").upper()
+                    for meeting in meetings:
+                        meeting_id = self._insert_race_meeting(cursor, program_id, meeting)
+                        races = meeting.get("courses", [])
+                        for race in races:
+                            discipline = race.get("discipline", "").upper()
                             if discipline in ["ATTELE", "MONTE"]:
-                                self._insert_race(cur, meeting_id, course)
+                                self._insert_race(cursor, meeting_id, race)
                                 count_races += 1
                     self.logger.info("Ingested %d trot races for date %s", count_races, program_date)
         finally:

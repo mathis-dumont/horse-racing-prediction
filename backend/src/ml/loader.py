@@ -1,34 +1,41 @@
 import os
 import logging
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Engine
 from dotenv import load_dotenv
 
 class DataLoader:
     """
-    Gestionnaire de données robuste utilisant SQLAlchemy.
-    Charge les données brutes (Participants + Historique) et effectue la fusion initiale.
+    Robust Data Manager using SQLAlchemy.
+    Responsible for loading raw data (Participants + History) and performing the initial merge.
     """
 
     def __init__(self) -> None:
-        load_dotenv() # Charge les variables du .env
+        """
+        Initializes the database connection using environment variables.
+        """
+        load_dotenv()  # Load variables from .env
         self.logger = logging.getLogger("ML.Loader")
         
         db_url = os.getenv("DB_URL")
         if not db_url:
-            raise ValueError("DB_URL manquant dans le fichier .env")
+            raise ValueError("DB_URL is missing in the .env file")
             
-        self.engine = create_engine(db_url)
+        self.engine: Engine = create_engine(db_url)
 
     def get_training_data(self) -> pd.DataFrame:
         """
-        Extrait et fusionne les données participants et l'historique agrégé.
+        Extracts and merges participant data with aggregated historical statistics.
+        
+        Returns:
+            pd.DataFrame: The merged dataset sorted by program date.
         """
-        self.logger.info("Chargement des données SQL...")
+        self.logger.info("Loading SQL data...")
         
         try:
             with self.engine.connect() as connection:
-                # 1. Main Dataset (La nouvelle requête optimisée)
+                # 1. Main Dataset (Optimized Query)
+                # Note: SQL Column aliases are preserved to ensure downstream compatibility.
                 query_main = """
                 SELECT
                     rp.participant_id, rp.race_id, rp.horse_id,
@@ -56,38 +63,39 @@ class DataLoader:
                 main_df['program_date'] = pd.to_datetime(main_df['program_date'])
 
                 # 2. History Dataset & Aggregation
-                self.logger.info("Calcul des statistiques historiques...")
+                self.logger.info("Calculating historical statistics...")
                 query_history = """
                 SELECT horse_id, finish_place, reduction_km, prize_money 
                 FROM horse_race_history
                 """
-                hist_df = pd.read_sql(query_history, connection)
+                history_df = pd.read_sql(query_history, connection)
                 
-                # Calcul optimisé des stats
-                horse_stats = hist_df.groupby('horse_id').agg({
+                # Optimized statistics calculation
+                horse_stats = history_df.groupby('horse_id').agg({
                     'finish_place': ['count', 'mean'],
                     'reduction_km': ['mean', 'min'],
                     'prize_money': 'sum'
                 }).reset_index()
                 
+                # Flatten MultiIndex columns and rename
                 horse_stats.columns = [
                     'horse_id', 'hist_races', 'hist_avg_rank', 
                     'hist_avg_speed', 'hist_best_speed', 'hist_earnings'
                 ]
                 
-                # Valeur par défaut pour la vitesse (1.20 = lent/standard)
+                # Default value for speed (1.20 = slow/standard context)
                 horse_stats['hist_avg_speed'] = horse_stats['hist_avg_speed'].fillna(1.20)
 
-                # 3. Fusion
-                self.logger.info("Fusion des datasets...")
+                # 3. Merge
+                self.logger.info("Merging datasets...")
                 final_df = pd.merge(main_df, horse_stats, on='horse_id', how='left')
                 
-                # Gestion basique des NULLs post-jointure (les "nouveaux" chevaux)
+                # Basic handling of NULLs post-merge (for "new" horses not in history)
                 final_df['hist_races'] = final_df['hist_races'].fillna(0)
                 final_df['hist_earnings'] = final_df['hist_earnings'].fillna(0)
                 
                 return final_df.sort_values('program_date')
 
-        except Exception as exc:
-            self.logger.error(f"Erreur critique lors du chargement des données: {exc}")
-            raise exc
+        except Exception as error:
+            self.logger.error(f"Critical error while loading data: {error}")
+            raise error

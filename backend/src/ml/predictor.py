@@ -2,7 +2,7 @@ import joblib
 import logging
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any
 
 class RacePredictor:
     """
@@ -28,8 +28,8 @@ class RacePredictor:
             self.logger.info("Model loaded successfully.")
         except FileNotFoundError:
             self.logger.error(f"Model file not found: {self.model_path}")
-        except Exception as exc:
-            self.logger.error(f"Critical error loading model: {exc}")
+        except Exception as error:
+            self.logger.error(f"Critical error loading model: {error}")
 
     def predict_race(self, participants: List[Dict[str, Any]]) -> List[float]:
         """
@@ -66,7 +66,7 @@ class RacePredictor:
             # Explicit conversion to native float list for easy JSON serialization
             return probabilities.tolist()
 
-        except Exception as exc:
-            self.logger.error(f"Error during prediction: {exc}")
+        except Exception as error:
+            self.logger.error(f"Error during prediction: {error}")
             # In case of crash (critical missing column), return zeros to avoid breaking the API
             return [0.0] * len(participants)

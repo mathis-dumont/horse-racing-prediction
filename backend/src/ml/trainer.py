@@ -9,10 +9,9 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OrdinalEncoder
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import log_loss, roc_auc_score
+from pathlib import Path
 
 # Ensure python finds the source modules
-import sys
-from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.ml.loader import DataLoader
@@ -98,7 +97,7 @@ class XGBoostTrainer:
         # 5. Base XGBoost
         self.logger.info("Training Base XGBoost...")
         base_xgb = XGBClassifier(
-            n_estimators=1000, # Reduced slightly for speed, increase for prod
+            n_estimators=1000, 
             max_depth=6,
             learning_rate=0.02,
             subsample=0.8,

@@ -1,0 +1,73 @@
+name: Daily ETL Ingestion (Sliding Window)
+
+on:
+  schedule:
+    # Tous les jours à 06:00 UTC
+    - cron: '0 6 * * *'
+  push:
+    branches:
+      - 'model_xgboost' 
+  
+  workflow_dispatch:
+    inputs:
+      specific_date:
+        description: 'Date spécifique (DDMMYYYY). Si vide, lance le mode fenetre glissante (J-2 à J).'
+        required: false
+        default: ''
+
+jobs:
+  run-etl:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Calculate Date Range
+        id: dates
+        run: |
+          # Si une date manuelle est fournie, on l'utilise
+          if [ -n "${{ github.event.inputs.specific_date }}" ]; then
+            echo "MODE=single" >> $GITHUB_OUTPUT
+            echo "DATE_ARG=${{ github.event.inputs.specific_date }}" >> $GITHUB_OUTPUT
+            echo "Message: Manual run for ${{ github.event.inputs.specific_date }}"
+          
+          else
+            # Mode Automatique : Fenêtre glissante de J-2 à Aujourd'hui
+            # Sur Ubuntu (Github Actions), 'date' supporte l'option -d
+            
+            TODAY=$(date +'%d%m%Y')
+            START_DATE=$(date -d "2 days ago" +'%d%m%Y')
+            
+            echo "MODE=range" >> $GITHUB_OUTPUT
+            echo "START=$START_DATE" >> $GITHUB_OUTPUT
+            echo "END=$TODAY" >> $GITHUB_OUTPUT
+            echo "Message: Auto run from $START_DATE to $TODAY"
+          fi
+
+      - name: Run ETL Script
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          PYTHONPATH: ${{ github.workspace }}/backend
+        run: |
+          echo "${{ steps.dates.outputs.Message }}"
+          
+          if [ "${{ steps.dates.outputs.MODE }}" == "single" ]; then
+            # Mode manuel simple
+            python backend/src/cli/etl.py --type all --date ${{ steps.dates.outputs.DATE_ARG }}
+          else
+            # Mode automatique (plage de dates)
+            # Utilise l'argument --range implémenté dans ton CLI
+            python backend/src/cli/etl.py --type all --range ${{ steps.dates.outputs.START }} ${{ steps.dates.outputs.END }}
+          fi

@@ -3,12 +3,20 @@ services:
   backend:
     build: ./backend
     container_name: pmu_backend
-    environment:
-      # Variable stored in the .env
-      - DB_URL=${DB_URL}
+    # Load the entire .env file (no need to map variables one by one)
+    env_file:
+      - .env
+    # CRITICAL: Map the local data folder so the API can see 'model_calibrated.pkl'
+    # path_on_host : path_in_container
+    volumes:
+      - ./backend/data:/app/data
+    # CRITICAL: Allow container to reach your computer's Postgres (host.docker.internal)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
-    
+    # Optional: Restart automatically if it crashes
+    restart: on-failure
 
   # 2. Frontend UI Service
   frontend:
@@ -17,6 +25,7 @@ services:
     depends_on:
       - backend
     environment:
+      # Internal Docker Networking (backend resolves to the service name above)
       - API_URL=http://backend:8000
     ports:
       - "8501:8501"

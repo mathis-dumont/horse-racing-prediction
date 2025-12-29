@@ -4,9 +4,6 @@ on:
   schedule:
     # Tous les jours à 06:00 UTC
     - cron: '0 6 * * *'
-  push:
-    branches:
-      - 'model_xgboost' 
   
   workflow_dispatch:
     inputs:

@@ -1,10 +1,8 @@
-# Makefile for Horse Racing Prediction Project
-
 # --- VARIABLES ---
-# Default to today's date (DDMMYYYY) if not specified
 DATE ?= $(shell date +%d%m%Y)
 
-.PHONY: up down build clean logs train ingest test-backend test-frontend test-all type-check
+# --- PHONY TARGETS ---
+.PHONY: up down build build-nc clean logs train ingest test-backend test-frontend test-all type-check clean-pycache
 
 # --- CONTROL COMMANDS ---
 up:
@@ -13,26 +11,36 @@ up:
 down:
 	docker-compose down
 
-# The "Nuke": Stops containers and removes volumes (database data)
-clean:
-	docker-compose down -v --remove-orphans
-	@echo "💥 System wiped clean. Database is empty."
-
+# Standard build
 build:
 	docker-compose build
+
+# No-cache build (The "Force Refresh" you used to fix the path issues)
+build-nc:
+	docker-compose build --no-cache
+
+# The "Nuke": Stops containers, removes volumes, and wipes local Python caches
+clean: down
+	docker-compose down -v --remove-orphans
+	@$(MAKE) clean-pycache
+	@echo "💥 System wiped clean. Database is empty and caches removed."
+
+# Helper to remove local __pycache__ and .pytest_cache that cause permission errors
+clean-pycache:
+	@echo "🧹 Cleaning Python cache folders with sudo..."
+	# We use sudo here because these files were created by root inside Docker
+	sudo find . -type d -name "__pycache__" -exec rm -rf {} +
+	sudo find . -type d -name ".pytest_cache" -exec rm -rf {} +
 
 logs:
 	docker-compose logs -f
 
 # --- WORKFLOW COMMANDS ---
 
-# Run the training script inside the backend container
 train:
 	@echo "🧠 Training ML Model..."
 	docker-compose run --rm backend python -m src.ml.trainer
 
-# Run the ETL Orchestrator. 
-# Usage: make ingest (defaults to today) OR make ingest DATE=01012025
 ingest:
 	@echo "🚀 Ingesting data for date: $(DATE)"
 	docker-compose run --rm backend python -m src.cli.etl --date $(DATE) --type all
@@ -45,10 +53,9 @@ test-backend:
 
 test-frontend:
 	@echo "🧪 Running Frontend Tests..."
-	# FIXED: Changed from 'npm test' to 'pytest' because Streamlit is Python
-	docker-compose run --rm frontend pytest tests/ -v
+	# Added PYTHONPATH to ensure 'ui', 'api', and 'state' modules are found inside /app
+	docker-compose run --rm -e PYTHONPATH=/app frontend pytest tests/ -v
 
-# Run ALL tests (Backend + Frontend)
 test-all: test-backend test-frontend
 
 type-check:

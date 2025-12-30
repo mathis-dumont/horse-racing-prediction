@@ -1,0 +1,31 @@
+services:
+  backend:
+    build: ./backend
+    container_name: pmu_backend
+    env_file:
+      - .env
+    
+    # FIX 1: Tell Docker to run commands inside this folder
+    working_dir: /backend
+
+    volumes:
+      # FIX 2: Sync your entire local 'backend' folder (which includes 'src')
+      # to the '/backend' folder inside the container.
+      - ./backend:/backend
+    
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    restart: on-failure
+
+  frontend:
+    build: ./frontend
+    container_name: pmu_frontend
+    depends_on:
+      - backend
+    environment:
+      - API_URL=http://backend:8000
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8501:8501"

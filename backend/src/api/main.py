@@ -1,16 +1,29 @@
 """
 Main entry point for the FastAPI application.
-Handles lifecycle management, dependency injection, and route definitions.
+Handles routing, model lifecycle management, and betting logic.
 """
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Depends, HTTPException
-from src.api.schemas import RaceSummary, ParticipantSummary, PredictionResult
+from fastapi import FastAPI, Depends, HTTPException, status
+import pandas as pd
+
+from src.api.schemas import (
+    RaceSummary, 
+    ParticipantSummary, 
+    PredictionResult, 
+    BetRecommendation
+)
 from src.api.repositories import RaceRepository
 from src.ml.predictor import RacePredictor
-from pathlib import Path
+
+# --- CONFIGURATION: SNIPER STRATEGY ---
+MIN_EDGE = 0.05       # Minimum expected value (5%)
+MIN_ODDS = 5.0        # Minimum decimal odds
+MAX_ODDS = 20.0       # Maximum decimal odds (to avoid longshots)
+DEFAULT_ODDS_IF_MISSING = 1.1
 
 # Logger Configuration
 logging.basicConfig(
@@ -19,122 +32,183 @@ logging.basicConfig(
 )
 logger = logging.getLogger("API")
 
-# --- LIFESPAN (ML Model Management) ---
-# Dictionary to hold the ML model instance in memory
+# --- LIFESPAN: ML Model Management ---
 ml_models: Dict[str, Optional[RacePredictor]] = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Application lifespan handler.
-    Loads the XGBoost model once at startup to optimize performance.
+    Manages the lifecycle of the application.
+    Loads the Machine Learning model into memory on startup.
     """
-    logger.info("LOADING XGBOOST MODEL...")
+    logger.info("Initializing ML Pipeline...")
     try:
-        # Ensure the path is correct relative to the execution directory
-        base_path = Path(__file__).resolve().parent.parent.parent 
-        model_path = base_path / "data" / "model_xgboost.pkl"
+        current_file = Path(__file__).resolve()
+        project_root = current_file.parent.parent.parent
+        model_path = project_root / "data" / "model_calibrated.pkl"
         
+        # Initialize Predictor
         ml_models["predictor"] = RacePredictor(str(model_path))
-        logger.info(f"Model loaded successfully from {model_path}")
+        
+        # Safe access to check pipeline existence
+        predictor = ml_models["predictor"]
+        if predictor and predictor.pipeline:
+            logger.info(f"Model successfully loaded from {model_path}")
+        else:
+            logger.warning("Model file found, but the pipeline is empty/invalid.")
+            
     except Exception as exc:
-        logger.error(f"WARNING: Failed to load ML model ({exc}). API will run without predictions.")
+        logger.error(f"CRITICAL: Failed to load ML model ({exc}). Inference endpoints will fail.")
         ml_models["predictor"] = None
     
-    yield # API runs here
-    
-    # Cleanup on shutdown
+    yield
     ml_models.clear()
+    logger.info("ML Pipeline shut down.")
 
-# Initialize App with Lifespan
 app = FastAPI(title="PMU Predictor API", lifespan=lifespan)
 
-# Dependency Injection
+# --- DEPENDENCY INJECTION ---
 def get_repository() -> RaceRepository:
-    """Dependency provider for RaceRepository."""
+    """Dependency provider for the RaceRepository."""
     return RaceRepository()
 
 # --- ROUTES ---
 
-@app.get("/races/{date_code}", response_model=List[RaceSummary])
-def get_races(
-    date_code: str, 
-    repository: RaceRepository = Depends(get_repository)
-):
-    """
-    Get all races for a specific date.
+@app.get("/", tags=["System"])
+def health_check() -> Dict[str, str]:
+    """Returns the operational status of the API and the ML Engine."""
+    predictor = ml_models.get("predictor")
     
-    Args:
-        date_code: Date in 'DDMMYYYY' format.
-    """
+    # Mypy Safe Check: Ensure predictor is not None before accessing attributes
+    if predictor is not None and predictor.pipeline:
+        model_status = "loaded"
+    else:
+        model_status = "failed"
+        
+    return {"status": "online", "ml_engine": model_status}
+
+@app.get("/races/{date_code}", response_model=List[RaceSummary], tags=["Races"])
+def get_races(date_code: str, repository: RaceRepository = Depends(get_repository)) -> List[Dict[str, Any]]:
+    """Fetches all races for a given date (DDMMYYYY)."""
     return repository.get_races_by_date(date_code)
 
-@app.get("/races/{race_id}/participants", response_model=List[ParticipantSummary])
-def get_race_participants(
-    race_id: int, 
-    repository: RaceRepository = Depends(get_repository)
-):
-    """
-    Get participants for a specific race.
-    """
+@app.get("/races/{race_id}/participants", response_model=List[ParticipantSummary], tags=["Races"])
+def get_race_participants(race_id: int, repository: RaceRepository = Depends(get_repository)) -> List[Dict[str, Any]]:
+    """Fetches participants for a specific race."""
     return repository.get_participants_by_race(race_id)
 
-# --- ML PREDICTION ROUTE ---
 
-@app.get("/races/{race_id}/predict", response_model=List[PredictionResult])
-def predict_race(
-    race_id: int, 
-    repository: RaceRepository = Depends(get_repository)
-):
+@app.get("/bets/sniper/{date_code}", response_model=List[BetRecommendation], tags=["Betting"])
+def get_sniper_bets(date_code: str, repository: RaceRepository = Depends(get_repository)) -> List[Dict[str, Any]]:
     """
-    Generates predictions for a specific race using the loaded ML model.
-    Fetches raw data from the database, processes it, and returns ranked probabilities.
+    Generates betting recommendations using the 'Sniper' strategy.
     """
     predictor = ml_models.get("predictor")
     
-    # Check if predictor is loaded and has a valid pipeline
-    if not predictor or not predictor.pipeline:
+    # Mypy Safe Check
+    if predictor is None:
         raise HTTPException(
-            status_code=503, 
-            detail="Prediction model is unavailable (missing .pkl file?)."
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
+            detail="ML Model is unavailable. Betting calculations cannot proceed."
         )
 
-    # 1. Fetch enriched raw data from PostgreSQL
-    raw_participants = repository.get_race_data_for_ml(race_id)
-    
+    # 1. Retrieve Raw Data
+    raw_participants = repository.get_daily_data_for_ml(date_code)
     if not raw_participants:
+        logger.info(f"No data found for date {date_code}")
+        return []
+
+    # 2. Vectorized Prediction
+    try:
+        probabilities = predictor.predict_race(raw_participants)
+    except Exception as exc:
+        logger.error(f"Inference engine failure: {exc}")
         raise HTTPException(
-            status_code=404, 
-            detail="Race not found or no participants available."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="Inference engine failed."
         )
 
-    # 2. Prediction via Pipeline (Transformation + XGBoost)
+    # 3. DataFrame Construction & Logic Application
+    df = pd.DataFrame(raw_participants)
+    df['win_probability'] = probabilities
+
+    # Clean Odds: Sanitize missing values
+    # Fix FutureWarnings: Use infer_objects(copy=False) after fillna
+    df['reference_odds'] = df['reference_odds'].fillna(1.0).infer_objects(copy=False)
+    df['reference_odds'] = df['reference_odds'].clip(lower=1.05)
+
+    # Calculate Edge
+    df['implied_prob'] = 1 / df['reference_odds']
+    df['edge'] = df['win_probability'] - df['implied_prob']
+
+    # Filter Strategy (Vectorized)
+    sniper_mask = (
+        (df['edge'] >= MIN_EDGE) & 
+        (df['reference_odds'] >= MIN_ODDS) & 
+        (df['reference_odds'] <= MAX_ODDS)
+    )
+    
+    candidates = df[sniper_mask].copy()
+
+    recommendations = []
+    
+    # Selection: Choose the single best bet per race based on Probability
+    for race_id, group in candidates.groupby('race_id'):
+        best_bet = group.sort_values('win_probability', ascending=False).iloc[0]
+        
+        recommendations.append({
+            "race_id": int(best_bet['race_id']),
+            "race_num": int(best_bet['race_number']),
+            "horse_name": best_bet['horse_name'],
+            "program_number": int(best_bet['program_number']),
+            "odds": float(best_bet['reference_odds']),
+            "win_probability": float(best_bet['win_probability']),
+            "edge": float(best_bet['edge']),
+            "strategy": "Sniper"
+        })
+
+    return recommendations
+
+@app.get("/races/{race_id}/predict", response_model=List[PredictionResult], tags=["Predictions"])
+def predict_race(race_id: int, repository: RaceRepository = Depends(get_repository)) -> List[Dict[str, Any]]:
+    """
+    Returns ML predictions (Win Probability and Rank) for a specific race.
+    """
+    predictor = ml_models.get("predictor")
+    
+    # Mypy Safe Check: Ensure predictor exists AND has a pipeline
+    if predictor is None or not predictor.pipeline:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
+            detail="ML Model unavailable."
+        )
+
+    raw_participants = repository.get_race_data_for_ml(race_id)
+    if not raw_participants:
+        raise HTTPException(status_code=404, detail="Race not found.")
+
     try:
-        # Repository returns RealDictRow, compatible with list(dict)
         win_probabilities = predictor.predict_race(raw_participants)
     except Exception as exc:
-        logger.error(f"ML Error: {exc}")
+        logger.error(f"ML Error during single race prediction: {exc}")
         raise HTTPException(
-            status_code=500, 
-            detail=f"Internal prediction engine error: {str(exc)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="Prediction process failed."
         )
 
-    # 3. Construct Response
     results = []
     for index, participant in enumerate(raw_participants):
         results.append({
-            "pmu_number": participant["pmu_number"],
+            "program_number": participant["program_number"],
             "horse_name": participant["horse_name"],
-            "win_probability": float(win_probabilities[index]), # numpy -> float
-            "predicted_rank": 0 # Calculated below
+            "win_probability": win_probabilities[index],
+            "predicted_rank": 0 # Placeholder, calculated below
         })
 
-    # 4. Sorting and Ranking
-    # Sort by probability descending
+    # Sort by probability descending to determine rank
     results.sort(key=lambda x: x["win_probability"], reverse=True)
     
-    # Assign rank based on sort order
     for rank, res in enumerate(results, 1):
         res["predicted_rank"] = rank
-
+        
     return results

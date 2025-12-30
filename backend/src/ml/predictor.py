@@ -1,70 +1,72 @@
-"""
-Inference module for loading the trained model and generating predictions.
-"""
 import joblib
-import pandas as pd
 import logging
-from typing import List, Dict, Any, Optional
+import pandas as pd
+import numpy as np
+from typing import List, Dict, Any
 
 class RacePredictor:
     """
-    Wrapper around the trained Scikit-Learn/XGBoost pipeline to perform inference.
+    Simplified inference module.
+    Loads the complete Pipeline (Feature Engineering -> Preprocessing -> Calibration).
     """
 
-    def __init__(self, model_path: str = "data/model_xgboost.pkl") -> None:
+    def __init__(self, model_path: str = "data/model_calibrated.pkl") -> None:
         """
-        Initializes the predictor and attempts to load the model.
-
-        Args:
-            model_path (str): Path to the serialized .pkl model file.
+        Initializes the predictor by loading the serialized pipeline.
         """
         self.logger = logging.getLogger("ML.Predictor")
         self.model_path = model_path
-        self.pipeline = self._load_model()
+        self.pipeline = None
+        
+        self._load_model()
 
-    def _load_model(self) -> Any:
-        """Internal method to safely load the model file."""
+    def _load_model(self) -> None:
+        """Loads the single file containing the entire pipeline."""
         try:
-            return joblib.load(self.model_path)
+            self.logger.info(f"Loading model from {self.model_path}...")
+            self.pipeline = joblib.load(self.model_path)
+            self.logger.info("Model loaded successfully.")
         except FileNotFoundError:
-            self.logger.error(f"Model file not found at: {self.model_path}")
-            return None
-        except Exception as exc:
-            self.logger.error(f"Error loading model: {exc}")
-            return None
+            self.logger.error(f"Model file not found: {self.model_path}")
+        except Exception as error:
+            self.logger.error(f"Critical error loading model: {error}")
 
     def predict_race(self, participants: List[Dict[str, Any]]) -> List[float]:
         """
-        Predicts winning probabilities for a list of participants in a single race.
+        Predicts win probabilities for a list of raw participants (from API/DB).
 
         Args:
-            participants (List[Dict[str, Any]]): List of dictionaries containing 
-                raw participant data (as returned by the repository).
+            participants: List of dictionaries containing raw data 
+                          (e.g., {'program_date': '2023...', 'career_winnings': 5000, ...})
 
         Returns:
-            List[float]: A list of float probabilities (0.0 to 1.0) corresponding 
-                to the input list order. Returns 0.0s on failure.
+            List[float]: Calibrated probabilities (between 0.0 and 1.0).
         """
         if not self.pipeline:
-            self.logger.warning("Attempted prediction with no loaded model.")
+            self.logger.warning("Attempted prediction without a loaded model.")
             return [0.0] * len(participants)
-            
+
         if not participants:
             return []
 
         try:
-            # Convert raw dicts to DataFrame
-            input_dataframe = pd.DataFrame(participants)
-            
-            # The pipeline handles all steps:
-            # 1. PmuFeatureEngineer -> Ratios, Ranks, Missing Values
-            # 2. OrdinalEncoder -> Categorical encoding
-            # 3. XGBoost -> Prediction
-            win_probabilities = self.pipeline.predict_proba(input_dataframe)[:, 1]
-            
-            return win_probabilities.tolist()
+            # 1. Convert to DataFrame
+            # The pipeline expects raw columns (it will handle cleaning itself)
+            df = pd.DataFrame(participants)
 
-        except Exception as exc:
-            self.logger.error(f"Prediction crash: {exc}")
-            # Return safe fallback to prevent API 500
+            # 2. Predictions
+            # The pipeline executes in order:
+            #   a. PmuFeatureEngineer.transform() -> Calculates ratios, handles dates
+            #   b. ColumnTransformer -> Encodes categories (handles unknowns automatically)
+            #   c. CalibratedClassifierCV -> Predicts actual probability
+            
+            # predict_proba returns a matrix (N_samples, 2). Column 1 is the "Winner" class
+            probabilities = self.pipeline.predict_proba(df)[:, 1]
+
+            # Explicit conversion to native float list for easy JSON serialization
+            return probabilities.tolist()
+
+        except Exception as error:
+            self.logger.error(f"Error during prediction: {error}")
+            # In case of crash (critical missing column), return zeros to avoid breaking the API
             return [0.0] * len(participants)

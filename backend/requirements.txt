@@ -1,9 +1,23 @@
-fastapi
-uvicorn
-psycopg2-binary
-python-dotenv
-requests
-pandas
-scikit-learn
-xgboost
-joblib
+# --- Core API ---
+fastapi==0.111.0
+uvicorn==0.29.0
+python-dotenv==1.0.1
+requests==2.31.0
+httpx==0.27.0
+# Added to fix the warning
+python-multipart==0.0.9
+
+# --- Database ---
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.30
+
+# --- Data & ML ---
+pandas>=2.2.3
+numpy==1.26.4
+scikit-learn==1.4.2
+xgboost==2.0.3
+joblib==1.4.2
+
+# --- Testing ---
+pytest==8.2.0
+pytest-mock==3.14.0

@@ -59,6 +59,7 @@ dump/
 
 # Notebooks imports
 notebooks/.ipynb_checkpoints/
+notebooks/*.ipynb
 
 # Ignore test cache
 .pytest_cache/
@@ -77,4 +78,8 @@ data/
 *.parquet
 *.csv
 
-.github/
+# Ignore ML models and artifacts
+*.pkl
+*.json
+backend/src/ml/*.pkl
+backend/src/ml/*.json

@@ -188,7 +188,7 @@ Le backend expose des outils en ligne de commande pour gérer les données manue
 | Action | Commande (depuis `backend/`) | Description |
 | :--- | :--- | :--- |
 | **Ingestion (Jour)** | `python -m src.cli.etl --date JJMMAAAA --type all` | Récupère tout pour une date spécifique. |
-| **Ingestion (Plage)** | `python -m src.cli.etl --range DEBUT FIN --type program` | Récupère les données sur une période. |
+| **Ingestion (Plage)** | `python -m src.cli.etl --range DEBUT FIN --type all` | Récupère les données sur une période. |
 | **Entraînement ML** | `python -m src.ml.trainer` | Ré-entraîne le modèle XGBoost sur les données SQL actuelles. |
 
 ---

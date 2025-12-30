@@ -3,7 +3,7 @@ Main entry point for the FastAPI application.
 Handles routing, model lifecycle management, and betting logic.
 """
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -50,7 +50,9 @@ async def lifespan(app: FastAPI):
         # Initialize Predictor
         ml_models["predictor"] = RacePredictor(str(model_path))
         
-        if ml_models["predictor"].pipeline:
+        # Safe access to check pipeline existence
+        predictor = ml_models["predictor"]
+        if predictor and predictor.pipeline:
             logger.info(f"Model successfully loaded from {model_path}")
         else:
             logger.warning("Model file found, but the pipeline is empty/invalid.")
@@ -73,35 +75,38 @@ def get_repository() -> RaceRepository:
 # --- ROUTES ---
 
 @app.get("/", tags=["System"])
-def health_check():
+def health_check() -> Dict[str, str]:
     """Returns the operational status of the API and the ML Engine."""
-    model_status = "loaded" if ml_models.get("predictor") and ml_models["predictor"].pipeline else "failed"
+    predictor = ml_models.get("predictor")
+    
+    # Mypy Safe Check: Ensure predictor is not None before accessing attributes
+    if predictor is not None and predictor.pipeline:
+        model_status = "loaded"
+    else:
+        model_status = "failed"
+        
     return {"status": "online", "ml_engine": model_status}
 
 @app.get("/races/{date_code}", response_model=List[RaceSummary], tags=["Races"])
-def get_races(date_code: str, repository: RaceRepository = Depends(get_repository)):
+def get_races(date_code: str, repository: RaceRepository = Depends(get_repository)) -> List[Dict[str, Any]]:
     """Fetches all races for a given date (DDMMYYYY)."""
     return repository.get_races_by_date(date_code)
 
 @app.get("/races/{race_id}/participants", response_model=List[ParticipantSummary], tags=["Races"])
-def get_race_participants(race_id: int, repository: RaceRepository = Depends(get_repository)):
+def get_race_participants(race_id: int, repository: RaceRepository = Depends(get_repository)) -> List[Dict[str, Any]]:
     """Fetches participants for a specific race."""
     return repository.get_participants_by_race(race_id)
 
 
 @app.get("/bets/sniper/{date_code}", response_model=List[BetRecommendation], tags=["Betting"])
-def get_sniper_bets(date_code: str, repository: RaceRepository = Depends(get_repository)):
+def get_sniper_bets(date_code: str, repository: RaceRepository = Depends(get_repository)) -> List[Dict[str, Any]]:
     """
     Generates betting recommendations using the 'Sniper' strategy.
-    
-    Logic:
-    1. Fetches daily race data.
-    2. Runs ML inference to get win probabilities.
-    3. Calculates 'Edge' (Expected Value) vs Bookmaker Odds.
-    4. Filters for high-value bets within the configured odds range.
     """
     predictor = ml_models.get("predictor")
-    if not predictor:
+    
+    # Mypy Safe Check
+    if predictor is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
             detail="ML Model is unavailable. Betting calculations cannot proceed."
@@ -127,8 +132,9 @@ def get_sniper_bets(date_code: str, repository: RaceRepository = Depends(get_rep
     df = pd.DataFrame(raw_participants)
     df['win_probability'] = probabilities
 
-    # Clean Odds: Sanitize missing values and clip to avoid division by zero
-    df['reference_odds'] = df['reference_odds'].fillna(1.0)
+    # Clean Odds: Sanitize missing values
+    # Fix FutureWarnings: Use infer_objects(copy=False) after fillna
+    df['reference_odds'] = df['reference_odds'].fillna(1.0).infer_objects(copy=False)
     df['reference_odds'] = df['reference_odds'].clip(lower=1.05)
 
     # Calculate Edge
@@ -146,8 +152,7 @@ def get_sniper_bets(date_code: str, repository: RaceRepository = Depends(get_rep
 
     recommendations = []
     
-    # Selection: Choose the single best bet per race based on Probability or Edge
-    # Here we sort by win_probability to find the most likely winner among value bets
+    # Selection: Choose the single best bet per race based on Probability
     for race_id, group in candidates.groupby('race_id'):
         best_bet = group.sort_values('win_probability', ascending=False).iloc[0]
         
@@ -165,12 +170,14 @@ def get_sniper_bets(date_code: str, repository: RaceRepository = Depends(get_rep
     return recommendations
 
 @app.get("/races/{race_id}/predict", response_model=List[PredictionResult], tags=["Predictions"])
-def predict_race(race_id: int, repository: RaceRepository = Depends(get_repository)):
+def predict_race(race_id: int, repository: RaceRepository = Depends(get_repository)) -> List[Dict[str, Any]]:
     """
     Returns ML predictions (Win Probability and Rank) for a specific race.
     """
     predictor = ml_models.get("predictor")
-    if not predictor or not predictor.pipeline:
+    
+    # Mypy Safe Check: Ensure predictor exists AND has a pipeline
+    if predictor is None or not predictor.pipeline:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
             detail="ML Model unavailable."

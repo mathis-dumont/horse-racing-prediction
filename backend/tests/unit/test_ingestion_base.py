@@ -1,4 +1,3 @@
-# tests/unit/test_ingestion_base.py
 import pytest
 import logging
 from src.ingestion.base import BaseIngestor
@@ -12,13 +11,17 @@ class ConcreteIngestor(BaseIngestor):
 def ingestor():
     return ConcreteIngestor(date_code="01012025")
 
-def test_to_euros_conversion(ingestor):
+# --- Parameterized Test ---
+@pytest.mark.parametrize("input_val, expected", [
+    (1250, 12.5),       # Standard integer
+    (0, 0.0),           # Zero edge case
+    ("500", 5.0),       # String number
+    (None, None),       # None handling
+    ("invalid", None),  # Garbage input handling
+])
+def test_to_euros_conversion(ingestor, input_val, expected):
     """Verify distinct cents to euros conversion scenarios."""
-    assert ingestor._to_euros(1250) == 12.5
-    assert ingestor._to_euros(0) == 0.0
-    assert ingestor._to_euros("500") == 5.0
-    assert ingestor._to_euros(None) is None
-    assert ingestor._to_euros("invalid") is None
+    assert ingestor._to_euros(input_val) == expected
 
 def test_safe_truncate(ingestor, caplog):
     """Verify string truncation and logging of overflows."""
@@ -38,8 +41,11 @@ def test_safe_truncate(ingestor, caplog):
 def test_http_session_configuration(ingestor):
     """Ensure the HTTP session is configured with retries."""
     session = ingestor._get_http_session()
+    
+    # Check HTTPS adapter specifically
     adapter = session.adapters["https://"]
     
     assert adapter.max_retries.total == 3
-    assert 429 in adapter.max_retries.status_forcelist
-    assert 503 in adapter.max_retries.status_forcelist
+    # Check that we retry on specific 'Temp Fail' codes
+    assert 429 in adapter.max_retries.status_forcelist  # Rate Limit
+    assert 503 in adapter.max_retries.status_forcelist  # Service Unavailable

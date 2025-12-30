@@ -1,0 +1,33 @@
+[tool.ruff]
+# Formatting settings
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+# Enable specific rules:
+# E/W: pycodestyle errors/warnings
+# F: Pyflakes (logical errors)
+# I: isort (import sorting)
+# B: flake8-bugbear (common bugs)
+select = ["E", "W", "F", "I", "B"]
+ignore = []
+
+[tool.mypy]
+# Global Mypy settings
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # Set to true later for stricter checks
+check_untyped_defs = true
+
+# --- IGNORE MISSING LIBRARIES ---
+# These libraries don't have official type stubs yet, so we tell Mypy to relax.
+
+[[tool.mypy.overrides]]
+module = [
+    "sklearn.*",
+    "joblib.*",
+    "xgboost.*",
+    "psycopg2.*"
+]
+ignore_missing_imports = true

@@ -4,6 +4,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import List
 
+# Import BaseIngestor for Type Hinting
+from src.ingestion.base import BaseIngestor
 from src.ingestion.program import ProgramIngestor
 from src.ingestion.participants import ParticipantsIngestor
 from src.ingestion.performances import PerformancesIngestor
@@ -64,10 +66,11 @@ def process_date(date_code: str, ingestion_type: str) -> None:
     """
     logger.info(f"=== Starting Ingestion for Date: {date_code} ===")
     
-    ingestors = []
+    # FIX FOR MYPY: Explicitly type the list as generic BaseIngestor
+    # This prevents Mypy from assuming the list is ONLY for ProgramIngestor
+    ingestors: List[BaseIngestor] = []
     
-    # Conditional logic preserves the original behavior of selecting 
-    # specific ingestors or all of them.
+    # Conditional logic preserves the original behavior
     if ingestion_type in ["program", "all"]:
         ingestors.append(ProgramIngestor(date_code))
         
@@ -88,7 +91,7 @@ def process_date(date_code: str, ingestion_type: str) -> None:
             ingestor_name = ingestor.__class__.__name__
             logger.exception(f"Ingestion failed for {ingestor_name} on {date_code}: {e}")
 
-def main():
+def main() -> None:
     """
     Main entry point for the CLI Orchestrator.
     """
@@ -115,7 +118,7 @@ def main():
     
     args = parser.parse_args()
     
-    dates_to_process = []
+    dates_to_process: List[str] = []
     
     if args.date:
         dates_to_process = [args.date]

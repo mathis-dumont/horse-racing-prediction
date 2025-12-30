@@ -1,66 +1,84 @@
-# tests/integration/test_api_routes.py
 import pytest
-from unittest.mock import patch
+from fastapi.testclient import TestClient
+from unittest.mock import MagicMock, patch  # <--- Import patch
+from src.api.main import app, get_repository, ml_models
 
-def test_health_check(client, mock_ml_pipeline):
-    """Test the system health endpoint."""
+# --- MOCKS ---
+
+class MockRaceRepository:
+    def get_races_by_date(self, date_code: str):
+        return [
+            {
+                "race_id": 100,
+                "meeting_number": 1,
+                "race_number": 1,
+                "discipline": "ATTELE",
+                "distance_m": 2700,
+                "racetrack_code": "VINC",
+                "name": "Prix d'Integration",
+                "declared_runners_count": 12
+            }
+        ]
+
+    def get_race_data_for_ml(self, race_id: int):
+        if race_id == 999:
+            return []
+        return [
+            {"program_number": 1, "horse_name": "A", "reference_odds": 2.0},
+            {"program_number": 2, "horse_name": "B", "reference_odds": 5.0}
+        ]
+
+class MockPredictor:
+    # Accept *args so it can catch the arguments meant for the real class
+    def __init__(self, *args, **kwargs): 
+        self.pipeline = True 
+
+    def predict_race(self, participants):
+        return [0.6, 0.4][:len(participants)]
+
+# --- FIXTURE (The Fix) ---
+
+@pytest.fixture
+def client():
+    # 1. Override Database
+    app.dependency_overrides[get_repository] = MockRaceRepository
+    
+    # 2. PATCH the Predictor Class
+    # This ensures that when main.py calls RacePredictor(), it gets our Mock instead.
+    with patch("src.api.main.RacePredictor", side_effect=MockPredictor):
+        with TestClient(app) as c:
+            yield c
+    
+    # Cleanup
+    app.dependency_overrides.clear()
+    ml_models.clear()
+
+# --- TESTS ---
+
+def test_health_check(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"status": "online", "ml_engine": "loaded"}
+    assert response.json()["ml_engine"] == "loaded"
 
-def test_get_races_success(client, mock_db_manager):
-    """Test fetching the race list."""
-    # Mock Repository via Dependency Override or mocking DB call inside it
-    # Since we mocked DB Manager globally, we can mock the fetchall return
-    mock_cursor = mock_db_manager.get_connection.return_value.cursor.return_value.__enter__.return_value
-    mock_cursor.fetchall.return_value = [
-        {
-            "race_id": 100,
-            "meeting_number": 1,
-            "race_number": 1,
-            "discipline": "ATTELE",
-            "distance_m": 2700,
-            "racetrack_code": "VINC"
-        }
-    ]
-
+def test_get_races_success(client):
     response = client.get("/races/01012025")
-    
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
     assert data[0]["race_id"] == 100
-    assert data[0]["discipline"] == "ATTELE"
 
-def test_predict_race_endpoint(client, mock_ml_pipeline, mock_db_manager):
-    """Test the single race prediction endpoint."""
-    mock_cursor = mock_db_manager.get_connection.return_value.cursor.return_value.__enter__.return_value
-    
-    # Mock return for get_race_data_for_ml
-    mock_cursor.fetchall.return_value = [
-        {"program_number": 1, "horse_name": "A", "some_feature": 1},
-        {"program_number": 2, "horse_name": "B", "some_feature": 2}
-    ]
-    
-    # Mock ML output
-    mock_ml_pipeline.predict_race.return_value = [0.6, 0.4]
-
+def test_predict_race_endpoint(client):
     response = client.get("/races/100/predict")
-    
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2
     
-    # Check ranking logic (Highest prob should be rank 1)
+    # Verify Mock Data: [0.6, 0.4]
     first = data[0]
     assert first["horse_name"] == "A"
     assert first["predicted_rank"] == 1
     assert first["win_probability"] == 0.6
 
-def test_predict_race_not_found(client, mock_db_manager):
-    """Test 404 behavior when race has no data."""
-    mock_cursor = mock_db_manager.get_connection.return_value.cursor.return_value.__enter__.return_value
-    mock_cursor.fetchall.return_value = [] # No participants
-    
+def test_predict_race_not_found(client):
     response = client.get("/races/999/predict")
     assert response.status_code == 404

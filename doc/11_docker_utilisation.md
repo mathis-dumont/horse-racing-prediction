@@ -9,7 +9,7 @@ Ce document explique le cycle de vie du projet avec une base de données distant
 1.  **Docker Desktop** doit être installé et lancé.
 2.  Le fichier **`.env`** doit contenir vos identifiants Supabase (sans guillemets) :
     ```ini
-    DATABASE_URL=postgresql://postgres.xxx:password@aws-0-region.pooler.supabase.com:6543/postgres
+    DB_URL=postgresql://postgres.xxx:password@aws-0-region.pooler.supabase.com:6543/postgres
     ```
 
 ---

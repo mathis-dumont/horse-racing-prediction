@@ -1,12 +1,16 @@
+# frontend/tests/conftest.py
 import pytest
 import pandas as pd
-from datetime import datetime
-import streamlit as st
+from unittest.mock import MagicMock
+
+# --- DATA FIXTURES ---
+# We return Lists of Dicts (JSON style) because that is what the API Client 
+# usually returns. The Streamlit App typically converts this to a DataFrame.
 
 @pytest.fixture
 def mock_races_data():
-    """Returns a sample DataFrame mimicking /races/{date} response."""
-    return pd.DataFrame([
+    """Returns a sample List[Dict] mimicking /races/{date} API response."""
+    return [
         {
             "meeting_number": 1,
             "racetrack_code": "VINCENNES",
@@ -14,7 +18,8 @@ def mock_races_data():
             "race_id": 101,
             "discipline": "TROTTING",
             "distance_m": 2700,
-            "declared_runners_count": 14
+            "declared_runners_count": 14,
+            "name": "Prix d'Amerique"
         },
         {
             "meeting_number": 1,
@@ -23,14 +28,15 @@ def mock_races_data():
             "race_id": 102,
             "discipline": "TROTTING",
             "distance_m": 2100,
-            "declared_runners_count": 12
+            "declared_runners_count": 12,
+            "name": "Prix de France"
         }
-    ])
+    ]
 
 @pytest.fixture
 def mock_prediction_data():
-    """Returns a sample DataFrame mimicking /predict response."""
-    return pd.DataFrame([
+    """Returns a sample List[Dict] mimicking /predict API response."""
+    return [
         {
             "program_number": 1,
             "horse_name": "Fast Horse",
@@ -43,12 +49,12 @@ def mock_prediction_data():
             "predicted_rank": 2,
             "win_probability": 0.15
         }
-    ])
+    ]
 
 @pytest.fixture
 def mock_participants_data():
-    """Returns a sample DataFrame mimicking /participants response."""
-    return pd.DataFrame([
+    """Returns a sample List[Dict] mimicking /participants API response."""
+    return [
         {
             "program_number": 1,
             "driver_name": "J. Doe",
@@ -59,11 +65,11 @@ def mock_participants_data():
             "driver_name": "A. Smith",
             "odds": 12.0
         }
-    ])
+    ]
 
 @pytest.fixture
 def mock_sniper_bets():
-    """Returns a sample list of dicts for sniper bets."""
+    """Returns a sample List[Dict] for sniper bets."""
     return [
         {
             "race_num": 1,
@@ -75,20 +81,22 @@ def mock_sniper_bets():
         }
     ]
 
-@pytest.fixture(autouse=True)
+# --- SESSION STATE FIXTURE ---
+# NOTE: Only use this if you are unit testing individual functions.
+# If you are using 'AppTest' (e2e testing), do NOT use this fixture, 
+# as AppTest handles its own session state.
+
+@pytest.fixture
 def mock_session_state():
     """
-    Automatically mocks st.session_state for every test to prevent 
-    KeyErrors or context errors when logic accesses it.
+    Mocks st.session_state for UNIT tests only.
     """
-    # Create a dictionary to act as session state
-    session_state = {}
-    
-    # Patch the actual st.session_state object
     import streamlit as st
-    with pytest.helpers.mock.patch.object(st, 'session_state', session_state):
-        yield session_state
-
-# Helper to register the patch helper if using pytest-mock, 
-# otherwise we use standard unittest.mock in the tests.
-pytest_plugins = ["pytest_mock"]
+    from unittest.mock import patch
+    
+    # Create a real dict to act as state
+    mock_state = {}
+    
+    # Patch the session_state object on the streamlit module
+    with patch.object(st, 'session_state', mock_state):
+        yield mock_state

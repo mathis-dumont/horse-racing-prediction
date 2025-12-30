@@ -42,7 +42,7 @@ Le projet vise à construire un système de prédiction des résultats de course
 ---
 
 #### Phase 5 : ingestion des données détaillées de course (participants, performances et rapports)
-*   **État** : étape suivante.
+*   **État** : terminé.
 *   **Description** : cette phase a pour objectif de finaliser l'ensemble des scripts nécessaires pour collecter toutes les informations relatives à une course : participants (JSON 2), historique de performances (JSON 3) et rapports de paris (JSON 4).
 *   **Tâches à réaliser** :
     *   Développer un script pour l'ingestion des participants et chevaux (JSON 2), afin de peupler les tables horse et race_participant.
@@ -52,7 +52,7 @@ Le projet vise à construire un système de prédiction des résultats de course
 ---
 
 #### Phase 6 : rétro-ingestion des données historiques
-*   **État** : en attente.
+*   **État** : terminé.
 *   **Description** : constitution d'un historique de données sur une période significative (objectif d'au moins cinq ans) pour permettre l'entraînement du modèle.
 *   **Tâches à réaliser** :
     *   Créer un script principal capable d'orchestrer les scripts d'ingestion développés dans les phases 4, 5 et 6.
@@ -61,7 +61,7 @@ Le projet vise à construire un système de prédiction des résultats de course
 ---
 
 #### Phase 7 : préparation des données et ingénierie des caractéristiques
-*   **État** : en attente.
+*   **État** : terminé.
 *   **Description** : transformation des données brutes stockées en un jeu de données structuré et exploitable pour l'apprentissage automatique.
 *   **Tâches à réaliser** :
     *   Construire le jeu de données final en joignant les différentes tables de la base.
@@ -71,7 +71,7 @@ Le projet vise à construire un système de prédiction des résultats de course
 ---
 
 #### Phase 8 : entraînement et évaluation des modèles
-*   **État** : en attente.
+*   **État** : terminé.
 *   **Description** : développement et sélection du modèle prédictif le plus performant.
 *   **Tâches à réaliser** :
     *   Établir une performance de référence avec un modèle simple (par exemple, régression logistique).
@@ -83,7 +83,7 @@ Le projet vise à construire un système de prédiction des résultats de course
 ---
 
 #### Phase 9 : développement de l'interface de programmation (api) de prédiction
-*   **État** : en attente.
+*   **État** : terminé.
 *   **Description** : création d'une interface de programmation pour exposer les prédictions du modèle.
 *   **Tâches à réaliser** :
     *   Développer une application avec FastAPI.
@@ -93,7 +93,7 @@ Le projet vise à construire un système de prédiction des résultats de course
 ---
 
 #### Phase 10 : automatisation et planification
-*   **État** : en attente.
+*   **État** : terminé.
 *   **Description** : mise en place de l'exécution récurrente et autonome du pipeline de données et de prédiction.
 *   **Tâches à réaliser** :
     *   Configurer une tâche planifiée (cron) ou une action GitHub pour l'ingestion quotidienne des nouvelles données.
@@ -103,7 +103,7 @@ Le projet vise à construire un système de prédiction des résultats de course
 ---
 
 #### Phase 11 : développement de l'interface utilisateur web
-*   **État** : en attente.
+*   **État** : terminé.
 *   **Description** : conception et réalisation d'un site web pour présenter le projet, visualiser les prédictions et afficher les performances du modèle. Cette étape est une composante clé de l'évaluation du projet.
 *   **Tâches à réaliser** :
     *   Définir la structure et le contenu du site.

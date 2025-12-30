@@ -106,7 +106,7 @@ Le projet poursuit quatre objectifs majeurs :
 4.  **Documentation** :
     *   `README.md` pour l'installation et l'utilisation.
     *   `01_cahier_des_charges.md` (ce document).
-    *   `01_architecture_bdd.md` décrivant le schéma de la base de données.
+    *   `02_architecture_bdd.md` décrivant le schéma de la base de données.
 5.  **Application déployée** :
     *   URL de l'API fonctionnelle.
     *   URL du site web public et accessible.

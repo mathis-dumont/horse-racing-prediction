@@ -1,20 +1,20 @@
-# 🐳 Guide d'Utilisation Docker - PMU Predictor
+# Guide d'utilisation de Docker
 
-Ce document explique le cycle de vie du projet avec une base de données distante (Supabase) déjà peuplée.
+Afin de rendre l'application portable, la conteneurisation est utilisée dans ce projet. Elle permet d'exécuter le code dans un environnement identique, du système d'exploitation (OS) aux bibliothèques Python, quelle que soit la machine hôte.
 
 ---
 
-## 📋 Prérequis
+## Prérequis
 
 1.  **Docker Desktop** doit être installé et lancé.
-2.  Le fichier **`.env`** doit contenir vos identifiants Supabase (sans guillemets) :
+2.  Le fichier **`.env`** doit contenir les identifiants de la base de données Supabase :
     ```ini
     DB_URL=postgresql://postgres.xxx:password@aws-0-region.pooler.supabase.com:6543/postgres
     ```
 
 ---
 
-## 🚀 1. Entraînement du Modèle (Priorité)
+## 1. Entraînement du Modèle
 
 Puisque la base contient déjà 5 ans d'historique, nous pouvons entraîner le modèle immédiatement.
 
@@ -34,9 +34,10 @@ docker-compose run --rm backend python src/ml/trainer.py
 
 ---
 
-## 🧪 2. Exécution des Tests
+## 2. Exécution des Tests
 
-Une fois le modèle généré (étape 1), validez que tout fonctionne.
+Une fois le modèle généré, le fonctionnement de l'application peut être validé via des tests.
+L'architecture de test est conçue pour être isolée. Le Backend utilise unittest.mock pour simuler la base de données (Supabase), et le Frontend utilise Streamlit AppTest en simulant les réponses de l'API. Cela permet de valider le code sans dépendre de la connexion internet ou de l'état du serveur.
 
 **Tests Backend :**
 
@@ -54,20 +55,10 @@ docker-compose run --rm frontend pytest tests/test_main.py -v
 
 ---
 
-## 📥 3. Mise à jour Quotidienne (App Live)
-
-Bien que l'historique soit là, l'application a besoin des **courses d'aujourd'hui** pour faire des pronostics.
-Lancez cette commande chaque matin :
-
-```bash
-# Remplacez la date par celle d'aujourd'hui (JJMMAAAA)
-docker-compose run --rm backend python src/data/etl.py --date 29122025 --type all
-
-```
 
 ---
 
-## 🌐 4. Lancement de l'Application
+## 3. Lancement de l'Application
 
 Lancez l'interface utilisateur et l'API.
 
@@ -85,7 +76,7 @@ docker-compose up --build
 
 ---
 
-## 🛠️ Dépannage Supabase
+## Dépannage Supabase
 
 **Erreur : `FATAL: password authentication failed**`
 Vérifiez que vous utilisez bien le mot de passe de la base de données (Database Password) et non celui de votre compte Supabase.

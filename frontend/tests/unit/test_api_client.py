@@ -1,5 +1,6 @@
 import pytest
 import pandas as pd
+import requests
 from unittest.mock import MagicMock, patch
 from api.api_client import APIClient, fetch_daily_races, fetch_predictions
 
@@ -34,7 +35,9 @@ class TestAPIClient:
     def test_get_request_failure(self, mock_requests_get):
         """Test API failure (404/500) returns None."""
         mock_response = MagicMock()
-        mock_response.raise_for_status.side_effect = Exception("API Error")
+
+        mock_response.raise_for_status.side_effect = requests.exceptions.RequestException("API Error")
+        
         mock_requests_get.return_value = mock_response
 
         client = APIClient()
@@ -42,7 +45,7 @@ class TestAPIClient:
         
         assert result is None
 
-    @patch('frontend.api.api_client.client._get')
+    @patch('api.api_client.client._get')
     def test_fetch_daily_races_returns_dataframe(self, mock_get):
         """Test that list of dicts converts to DataFrame."""
         mock_get.return_value = [{"race_id": 1}, {"race_id": 2}]
@@ -55,7 +58,7 @@ class TestAPIClient:
         assert len(df) == 2
         assert "race_id" in df.columns
 
-    @patch('frontend.api.api_client.client._get')
+    @patch('api.api_client.client._get')
     def test_fetch_predictions_empty_on_failure(self, mock_get):
         """Test that API returning None results in empty DataFrame."""
         mock_get.return_value = None

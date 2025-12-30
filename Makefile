@@ -46,7 +46,7 @@ test-backend:
 test-frontend:
 	@echo "🧪 Running Frontend Tests..."
 	# FIXED: Changed from 'npm test' to 'pytest' because Streamlit is Python
-	docker-compose run --rm frontend pytest frontend/tests/ -v
+	docker-compose run --rm frontend pytest tests/ -v
 
 # Run ALL tests (Backend + Frontend)
 test-all: test-backend test-frontend

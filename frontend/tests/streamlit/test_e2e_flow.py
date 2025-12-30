@@ -17,7 +17,7 @@ class TestAppE2E:
             mock_fetch.return_value = mock_races_data
             
             # Load the app
-            at = AppTest.from_file("frontend/app.py")
+            at = AppTest.from_file("app.py")
             at.run()
             
             # Check for no exceptions

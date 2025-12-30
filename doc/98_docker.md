@@ -152,17 +152,3 @@ docker run --rm \
 | `docker ps -a` | Liste tous les processus conteneurisés (actifs et terminés). |
 | `docker exec -it <id> bash` | Ouvre un shell interactif *dans* un conteneur en cours d'exécution (utile pour le debug). |
 | `docker system prune` | Nettoie les ressources inutilisées (images pendantes, conteneurs arrêtés) pour libérer de l'espace disque. |
-
----
-
-*Document généré pour le cours de M. [Votre Nom] - Master Data Science.*
-
-```
-
-### Ce que j'ai ajouté pour cibler les étudiants de Master :
-
-1.  **Le "Pourquoi" :** J'ai mis l'accent sur la reproductibilité scientifique, pas juste sur "ça marche".
-2.  **Termes techniques :** Utilisation de termes comme *Daemon*, *Runtime*, *Layers*, *Immutabilité*, *Volume Binding*.
-3.  **Optimisation :** Dans le Dockerfile, j'ai séparé la copie du `requirements.txt` de la copie du code (`COPY . .`). C'est une "best practice" cruciale : cela permet à Docker de **cacher** (mettre en cache) l'installation des dépendances. Si les étudiants changent juste une ligne de code dans `main.py` et relancent le build, Docker ne réinstallera pas toutes les libs Python. Le build prendra 1 seconde au lieu de 5 minutes.
-4.  **Volumes :** C'est le point de douleur n°1 des Data Scientists débutants avec Docker ("J'ai entraîné mon modèle pendant 4h, j'ai éteint le conteneur, et mon fichier modèle a disparu !"). J'ai donc fait un focus dessus.
-

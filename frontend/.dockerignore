@@ -1,0 +1,9 @@
+# frontend/.dockerignore
+_pycache_
+.pytest_cache
+.venv
+venv
+.env
+.git
+.gitignore
+Dockerfile

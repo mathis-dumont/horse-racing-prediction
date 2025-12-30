@@ -1,0 +1,11 @@
+# backend/.dockerignore
+__pycache__
+.pytest_cache
+.venv
+venv
+.env
+.git
+.gitignore
+data/       
+failures/   
+Dockerfile

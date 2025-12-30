@@ -1,10 +1,10 @@
 import pytest
 from unittest.mock import patch, MagicMock
 import pandas as pd
-from frontend.ui.sidebar import render_sidebar
-from frontend.ui.sniper import render_sniper_section
-from frontend.ui.race import render_race_grid
-from frontend.state import store
+from ui.sidebar import render_sidebar
+from ui.sniper import render_sniper_section
+from ui.race import render_race_grid
+from state import store
 
 @pytest.mark.usefixtures("mock_session_state")
 class TestUIComponents:

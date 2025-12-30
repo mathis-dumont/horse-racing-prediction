@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 from unittest.mock import MagicMock, patch
-from frontend.api.api_client import APIClient, fetch_daily_races, fetch_predictions
+from api.api_client import APIClient, fetch_daily_races, fetch_predictions
 
 class TestAPIClient:
     """

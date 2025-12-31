@@ -1,4 +1,3 @@
-# frontend/tests/conftest.py
 import pytest
 import pandas as pd
 from unittest.mock import MagicMock
@@ -82,9 +81,6 @@ def mock_sniper_bets():
     ]
 
 # --- SESSION STATE FIXTURE ---
-# NOTE: Only use this if you are unit testing individual functions.
-# If you are using 'AppTest' (e2e testing), do NOT use this fixture, 
-# as AppTest handles its own session state.
 
 @pytest.fixture
 def mock_session_state():

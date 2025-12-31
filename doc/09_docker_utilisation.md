@@ -1,88 +1,107 @@
-# Guide d'utilisation de Docker
+# 🏇 Guide d'Utilisation : Docker & Automation avec Makefile
 
 Afin de rendre l'application portable, la conteneurisation est utilisée dans ce projet. Elle permet d'exécuter le code dans un environnement identique, du système d'exploitation (OS) aux bibliothèques Python, quelle que soit la machine hôte.
 
----
-
-## Prérequis
-
-1.  **Docker Desktop** doit être installé et lancé.
-2.  Le fichier **`.env`** doit contenir les identifiants de la base de données Supabase :
-    ```ini
-    DB_URL=postgresql://postgres.xxx:password@aws-0-region.pooler.supabase.com:6543/postgres
-    ```
+L'utilisation du **Makefile** est fortement recommandée car elle encapsule les commandes Docker complexes et gère les problématiques de caches et de permissions.
 
 ---
 
-## 1. Entraînement du Modèle
+## 🛠️ Prérequis
 
-Puisque la base contient déjà 5 ans d'historique, nous pouvons entraîner le modèle immédiatement.
-
-**Commande :**
-```bash
-docker-compose run --rm backend python src/ml/trainer.py
+1. **Docker Desktop** doit être installé et lancé.
+2. L'utilitaire **`make`** doit être installé sur votre machine.
+3. Le fichier **`.env`** doit être présent à la racine avec vos identifiants Supabase :
+```ini
+DB_URL=postgresql://postgres.xxx:password@aws-0-region.pooler.supabase.com:6543/postgres
 
 ```
 
-**Ce que cela fait :**
-
-* Le conteneur se connecte à Supabase.
-* Il télécharge les données d'entraînement (attention : cela peut prendre quelques minutes selon votre connexion internet car le volume de données est important).
-* Il génère le fichier `model_calibrated.pkl` et le sauvegarde sur votre disque local via le volume Docker.
-
-> **Note :** Si le script crash par manque de mémoire (car 5 ans de données c'est lourd), nous devrons ajuster le `trainer.py` pour charger moins d'années.
-
----
-
-## 2. Exécution des Tests
-
-Une fois le modèle généré, le fonctionnement de l'application peut être validé via des tests.
-L'architecture de test est conçue pour être isolée. Le Backend utilise unittest.mock pour simuler la base de données (Supabase), et le Frontend utilise Streamlit AppTest en simulant les réponses de l'API. Cela permet de valider le code sans dépendre de la connexion internet ou de l'état du serveur.
-
-**Tests Backend :**
-
-```bash
-docker-compose run --rm backend pytest tests/test_api.py -v
-
-```
-
-**Tests Frontend :**
-
-```bash
-docker-compose run --rm frontend pytest tests/test_main.py -v
-
-```
-
----
 
 
 ---
 
-## 3. Lancement de l'Application
+## 🏗️ 1. Initialisation et Build
 
-Lancez l'interface utilisateur et l'API.
+Avant de commencer, il est conseillé de nettoyer l'environnement pour éviter les conflits de cache.
 
-**Commande :**
+**Commande :** `make clean`
 
-```bash
-docker-compose up --build
+> **Équivalent Docker :** `docker-compose down -v --remove-orphans` + `sudo rm -rf` (sur les dossiers de cache).
 
-```
+* *Action :* Arrête les conteneurs, supprime les volumes (Base de données) et nettoie les fichiers de cache Python créés par Docker sur l'hôte.
 
-**Accès :**
+**Commande :** `make build-nc`
 
-* **Frontend (Streamlit) :** [http://localhost:8501](https://www.google.com/search?q=http://localhost:8501)
-* **Backend (API) :** [http://localhost:8000/docs](https://www.google.com/search?q=http://localhost:8000/docs)
+> **Équivalent Docker :** `docker-compose build --no-cache`
+
+* *Action :* Force la reconstruction complète des images sans utiliser le cache, garantissant que les dernières versions des dépendances sont installées.
 
 ---
 
-## Dépannage Supabase
+## 🧠 2. Entraînement du Modèle ML
 
-**Erreur : `FATAL: password authentication failed**`
-Vérifiez que vous utilisez bien le mot de passe de la base de données (Database Password) et non celui de votre compte Supabase.
+Le backend a besoin d'un modèle entraîné (`.pkl`) pour fonctionner. Puisque la base contient déjà l'historique, nous pouvons générer le modèle immédiatement.
 
-**Erreur : `OperationalError: SSL connection has been closed unexpectedly**`
-Supabase ferme parfois les connexions inactives. Relancez simplement la commande.
+**Commande :** `make train`
 
-**Lenteur extrême lors de l'entraînement**
-Si le téléchargement des données depuis Supabase est trop lent pour l'entraînement, il faudra envisager de faire un "Dump" de la base Supabase pour la restaurer en local, mais essayez d'abord en direct.
+> **Équivalent Docker :** `docker-compose run --rm backend python -m src.ml.trainer`
+
+* *Action :* Crée un conteneur éphémère qui se connecte à Supabase, traite les données, génère `model_calibrated.pkl` et le sauvegarde sur votre disque local via un volume partagé.
+
+---
+
+## 🧪 3. Exécution des Tests
+
+L'architecture de test est isolée. Cela permet de valider le code sans dépendre de l'état réel du serveur.
+
+**Commande :** `make test-all`
+
+> **Équivalents Docker :**
+> * Backend : `docker-compose run --rm backend pytest tests/ -v`
+> * Frontend : `docker-compose run --rm -e PYTHONPATH=/app frontend pytest tests/ -v`
+> 
+> 
+
+* *Action :* Lance les tests unitaires et d'intégration. Notez l'injection de `PYTHONPATH` pour le frontend afin de garantir la découverte des modules internes dans le conteneur.
+
+---
+
+## 💾 4. Ingestion de nouvelles données
+
+Si vous souhaitez mettre à jour la base de données avec les courses du jour :
+
+**Commande :** `make ingest DATE=31122025`
+
+> **Équivalent Docker :** `docker-compose run --rm backend python -m src.cli.etl --date 31122025 --type all`
+
+* *Action :* Lancez le script ETL pour récupérer les données PMU à une date précise et les injecter dans la base de données.
+
+---
+
+## 🚀 5. Lancement de l'Application
+
+Une fois le modèle entraîné, lancez l'interface utilisateur et l'API.
+
+**Commande :** `make up`
+
+> **Équivalent Docker :** `docker-compose up -d`
+
+* *Action :* Démarre les services en arrière-plan.
+
+**Accès aux services :**
+
+* **Interface UI (Streamlit) :** [http://localhost:8501](https://www.google.com/search?q=http://localhost:8501)
+* **Documentation API (Swagger) :** [http://localhost:8000/docs](https://www.google.com/search?q=http://localhost:8000/docs)
+* **Suivi des logs :** `make logs` (équivalent : `docker-compose logs -f`)
+
+---
+
+## 🔍 Dépannage
+
+| Problème | Cause probable | Solution |
+| --- | --- | --- |
+| **`ml_engine: failed`** | Fichier `.pkl` absent | `make train` puis `docker-compose restart backend` |
+| **Permissions caches** | Fichiers créés par `root` | `make clean` pour forcer la suppression via `sudo` |
+| **Erreur de connexion DB** | Mauvais `.env` | Vérifier que le mot de passe est celui de la DB Supabase |
+
+---

@@ -88,7 +88,6 @@ class ParticipantsIngestor(BaseIngestor):
 
         age = participant_data.get("age")
         # Determine birth year based on current year and age
-        # TODO: Verify if this logic holds for races processed historically (vs current date).
         birth_year = (dt.datetime.now(tz=dt.timezone.utc).year - int(age)) if age else None
         
         raw_sex = participant_data.get("sexe")

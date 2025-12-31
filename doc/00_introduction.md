@@ -99,7 +99,7 @@ Dans une journée type, on observe plusieurs **moments clés** où les mises arr
 ---
 
 ## 10) Paroles d'experts
-* La **cote** est le reflet de la  "Vox populi", elle te servira à arbitrer si une course vaut le coup d'être jouer
+* La **cote** est le reflet de la  "Vox populi", elle servira à arbitrer si une course vaut le coup d'être jouer
 
 * PMU, ZTurf : prennent un gros %
 * Geny : petit % (là où il faut parier)

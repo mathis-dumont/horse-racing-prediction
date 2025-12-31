@@ -6,6 +6,8 @@ Le module d'ingestion adopte une architecture orientée objet (POO) modulaire et
 
 L'architecture repose sur une classe de base et des classes enfants spécialisées pour chaque type de données (programme, participants, performances, rapports).
 
+---
+
 ## 2. Structure du code
 
 Le code est organisé comme suit, depuis le dossier 'backend/' :
@@ -16,6 +18,8 @@ Le code est organisé comme suit, depuis le dossier 'backend/' :
 *   **`src/ingestion/performances.py`** : gère l'historique de carrière des chevaux (`horse_race_history`). C'est le module le plus critique en termes de volume.
 *   **`src/ingestion/rapports.py`** : gère les résultats de paris (`race_bet`, `bet_report`).
 *   **`src/cli/etl.py`** : Script CLI (Command Line Interface) faisant office de point d'entrée pour lancer les processus, conçu pour être exécuté manuellement ou via GitHub Actions.
+
+---
 
 ## 3. Stratégies d'optimisation
 
@@ -36,6 +40,8 @@ Toutes les requêtes SQL d'insertion utilisent la clause `ON CONFLICT DO NOTHING
 ### 3.4. Gestion des erreurs
 En cas d'échec d'insertion ou de parsing, le JSON brut est sauvegardé localement dans le dossier `failures/`. Cela assure qu'aucune donnée n'est définitivement perdue et permet un débogage ultérieur.
 
+---
+
 ## 4. Flux de données détaillé
 
 ### Étape 1 : Programme (`ProgramIngestor`)
@@ -55,6 +61,8 @@ Ce module gère le plus gros volume de données ("la musique" du cheval).
 ### Étape 4 : Rapports (`RapportsIngestor`)
 Récupère les rapports définitifs pour calculer les cibles d'apprentissage (gagnant, placé). Il distingue les types de paris (`race_bet`) et leurs résultats chiffrés (`bet_report`).
 
+---
+
 ## 5. Utilisation via CLI
 
 L'exécution se fait via l'appel du module `src.cli.etl`.
@@ -69,3 +77,4 @@ python -m src.cli.etl --date 05122025 --type all
 python -m src.cli.etl --range 01112025 30112025 --type all
 ```
 
+---

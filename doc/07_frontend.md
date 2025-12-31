@@ -56,7 +56,6 @@ L'inférence n'est pas automatique au chargement de la page pour économiser des
 ### 4.4. Restitution des résultats
 Les résultats sont affichés sous deux formes :
 *   **Podium prédictif** : les trois chevaux ayant la plus forte probabilité de victoire sont mis en avant avec un code couleur (Or, Argent, Bronze).
-*   **Indice de confiance** : un algorithme simple calcule l'écart de probabilité entre le 1er et le 2ème cheval pour attribuer une note de 1 à 3 étoiles (plus l'écart est grand, plus la prédiction est jugée fiable).
 *   **Tableau détaillé** : liste complète des partants avec leurs probabilités affichées sous forme de barres de progression.
 
 ## 5. Design et ergonomie

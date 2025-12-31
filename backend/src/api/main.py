@@ -133,7 +133,6 @@ def get_sniper_bets(date_code: str, repository: RaceRepository = Depends(get_rep
     df['win_probability'] = probabilities
 
     # Clean Odds: Sanitize missing values
-    # Fix FutureWarnings: Use infer_objects(copy=False) after fillna
     df['reference_odds'] = df['reference_odds'].fillna(1.0).infer_objects(copy=False)
     df['reference_odds'] = df['reference_odds'].clip(lower=1.05)
 

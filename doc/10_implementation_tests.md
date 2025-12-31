@@ -108,7 +108,7 @@ def test_races_loaded_ui(mock_fetch_races):
 
 Si l'environnement est correctement configuré, l'exécution des commandes ci-dessus doit produire un résultat "Vert" (PASSED).
 
-**Exemple de sortie Backend :**
+**Exemple informatif de sortie Backend :**
 
 ```text
 tests/test_api.py::test_health_check PASSED                            [ 20%]
@@ -121,7 +121,7 @@ tests/test_api.py::test_sniper_bets_strategy PASSED                    [100%]
 
 ```
 
-**Exemple de sortie Frontend :**
+**Exemple informatif de sortie Frontend :**
 
 ```text
 tests/test_app.py::test_app_initial_load PASSED                        [ 50%]

@@ -6,6 +6,8 @@ L'API (`backend/src/api`) est le cœur applicatif du projet. Elle expose les don
 
 Elle est construite avec **FastAPI** pour la performance et **Pydantic** pour la validation stricte des données.
 
+---
+
 ## 2. Architecture Logicielle
 
 L'API respecte une architecture en couches (Clean Architecture) :
@@ -14,6 +16,8 @@ L'API respecte une architecture en couches (Clean Architecture) :
 2.  **Schemas (`schemas.py`)** : Contrats d'interface (DTOs) pour les entrées/sorties.
 3.  **Repositories (`repositories.py`)** : Couche d'accès aux données (SQL pur).
 4.  **Inference Engine (`src/ml/predictor.py`)** : Couche d'intelligence artificielle.
+
+---
 
 ## 3. Intégration du Machine Learning
 
@@ -29,6 +33,8 @@ La classe `RacePredictor` fait le pont entre l'API et le pipeline ML.
 *   Elle les convertit en DataFrame Pandas.
 *   Elle interroge le pipeline (`model.predict_proba`).
 *   Elle gère les erreurs silencieusement (logging) pour ne pas crasher le serveur.
+
+---
 
 ## 4. Points d'accès (Endpoints)
 
@@ -62,6 +68,8 @@ La classe `RacePredictor` fait le pont entre l'API et le pipeline ML.
     ]
     ```
 
+---
+
 ## 5. Démarrage
 
 **Commande de lancement :**
@@ -71,3 +79,5 @@ uvicorn src.api.main:app --reload
 
 **Documentation Swagger UI :**
 Disponible à l'adresse `http://127.0.0.1:8000/docs`.
+
+---

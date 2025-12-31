@@ -30,6 +30,8 @@ Le projet poursuit quatre objectifs majeurs :
 *   **Gestion d'utilisateurs** : Le site web ne comportera ni système d'authentification ni espace personnel.
 *   **Prise de paris** : Le système est un outil d'aide à la décision et n'intègre aucune fonctionnalité de pari en ligne.
 
+---
+
 ## 2. Spécifications Fonctionnelles (SF)
 
 ### 2.1. Module d'ingestion de données
@@ -63,6 +65,8 @@ Le projet poursuit quatre objectifs majeurs :
 *   **SF-WEB-030** : Le site doit permettre de consulter les résultats des courses passées et de comparer les prédictions du modèle avec les arrivées réelles.
 *   **SF-WEB-040** : Le site doit inclure une section décrivant la méthodologie du projet et les indicateurs de performance du modèle.
 
+---
+
 ## 3. Spécifications Non-Fonctionnelles (SNF)
 
 ### 3.1. Performance
@@ -83,6 +87,8 @@ Le projet poursuit quatre objectifs majeurs :
 ### 3.4. Sécurité
 *   **SNF-SEC-010** : Les informations sensibles (identifiants de base de données, clés d'API) doivent être gérées via des variables d'environnement et ne jamais être inscrites en dur dans le code source.
 
+---
+
 ## 4. Contraintes techniques
 
 *   **Langage de programmation** : Python (version 3.8 ou supérieure).
@@ -94,6 +100,8 @@ Le projet poursuit quatre objectifs majeurs :
     *   Base de données : Supabase.
     *   Application (API et site web) : Render, Railway, ou un serveur privé virtuel (VPS).
 *   **Gestion de version** : Git.
+
+---
 
 ## 5. Livrables
 
@@ -108,6 +116,8 @@ Le projet poursuit quatre objectifs majeurs :
     *   URL de l'API fonctionnelle.
     *   URL du site web public et accessible.
 
+---
+
 ## 6. Glossaire
 
 *   **API (Application Programming Interface)** : Interface de programmation permettant à deux applications de communiquer entre elles.
@@ -115,3 +125,5 @@ Le projet poursuit quatre objectifs majeurs :
 *   **Idempotence** : Propriété d'une opération qui peut être appliquée plusieurs fois sans changer le résultat au-delà de l'application initiale.
 *   **Ingénierie des caractéristiques (Feature Engineering)** : Processus de création de nouvelles variables prédictives à partir des données brutes existantes.
 *   **Pipeline** : Chaîne de traitement des données, de la collecte à la prédiction.
+
+---

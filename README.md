@@ -19,6 +19,11 @@ Il couvre l’ensemble de la chaîne :
 * Assurer une **exécution automatisée et reproductible** (CI/CD & CRON)
 
 ---
+## Documentation
+
+Ce projet a necessité la mise en place de très nombreuses étapes, la documentation des étapes principales se situe dans le dossier `doc`.
+
+---
 
 ## Prérequis
 

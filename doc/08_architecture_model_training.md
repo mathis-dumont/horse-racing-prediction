@@ -1,3 +1,5 @@
+---
+
 # Architecture du Modèle et Documentation de l'Entraînement
 
 ### 1. Le Pipeline d'Entraînement (`model_production.py`)
@@ -21,19 +23,19 @@ Le processus d'entraînement est un pipeline en plusieurs étapes conçu pour co
 Le script d'entraînement produit trois fichiers critiques. Les trois sont requis pour exécuter le script de prédiction `predict_today_v2.py`.
 
 #### 1. `trot_sniper_model.json` (Le Cerveau Brut)
-*   **Ce que c'est :** Le cœur du modèle d'arbre de décision XGBoost sauvegardé au format JSON optimisé.
+*   **C'est quoi :** Le cœur du modèle d'arbre de décision XGBoost sauvegardé au format JSON optimisé.
 *   **Fonction :** Il contient les milliers de règles "Si/Sinon" apprises de l'historique (ex : *"Si Cheval est D4 ET Driver est Bazire, ajouter +0.5 au score"*).
 *   **Usage :** Il est encapsulé à l'intérieur du Calibrateur. Nous chargeons rarement ce fichier directement en production.
 
 #### 2. `probability_calibrator.pkl` (Le Produit Fini)
-*   **Ce que c'est :** Un objet Python Pickle contenant le **Classifieur Calibré**.
+*   **C'est quoi :** Un objet Python Pickle contenant le **Classifieur Calibré**.
 *   **Fonction :** Cet objet contient **à la fois** le modèle XGBoost Brut (ci-dessus) **et** la couche de correction par Régression Isotonique.
 *   **Usage :** **C'est le fichier principal utilisé pour la prédiction.**
     *   *Entrée :* Données du cheval.
     *   *Sortie :* Une probabilité précise (ex : `0.317`), corrigée de tout excès de confiance.
 
 #### 3. `model_artifacts.pkl` (Le Dictionnaire)
-*   **Ce que c'est :** Un dictionnaire de métadonnées contenant :
+*   **C'est quoi :** Un dictionnaire de métadonnées contenant :
     1.  **Liste des Features :** L'ordre exact des colonnes attendu par le modèle.
     2.  **Cartes des Catégories :** La liste stricte des Jockeys, Entraîneurs et configurations de Ferrure vus lors de l'entraînement.
 *   **Fonction :** Il agit comme un "Traducteur". Il assure que les données scrappées aujourd'hui sont formatées **exactement** de la même manière que les données d'entraînement (ex : convertir "D4" en l'ID interne correct).

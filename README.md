@@ -20,10 +20,6 @@ Il couvre l’ensemble de la chaîne :
 
 ---
 
-## Installation & Démarrage
-
-Ce projet est conçu pour être lancé rapidement via **Docker** (recommandé). Une installation locale manuelle est également possible pour le développement spécifique.
-
 ## Prérequis
 
 Avant de commencer, assurez-vous d’avoir installé les outils suivants sur votre machine :
@@ -89,6 +85,11 @@ Ces prérequis sont nécessaires **uniquement si vous n’utilisez pas Docker** 
 * **PostgreSQL**
 
 ---
+
+## Installation & Démarrage
+
+Ce projet est conçu pour être lancé rapidement via **Docker** (recommandé). Une installation locale manuelle est également possible pour le développement spécifique.
+
 
 ### Configuration
 
@@ -205,11 +206,11 @@ streamlit run app.py --server.port 8501
 
 ---
 
-## Automatisation & CI/CD (GitHub Actions)
+## Automatisation (GitHub Actions)
 
 Le projet intègre une **automatisation complète** via **GitHub Actions**, garantissant la mise à jour des données dans la base de données.
 
-### 1. Ingestion quotidienne (CRON)
+### Ingestion quotidienne (CRON)
 
 Un workflow GitHub Actions est exécuté **quotidiennement** pour :
 

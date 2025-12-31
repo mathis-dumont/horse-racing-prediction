@@ -2,13 +2,13 @@
 
 ## 1. Vue d'ensemble
 
-Le module d'ingestion adopte une architecture orientée objet (POO) modulaire et performante. Il se situe dans le répertoire `src/ingestion/` et a pour responsabilité d'extraire les données de l'API PMU, de les transformer et de les charger dans la base de données PostgreSQL.
+Le module d'ingestion adopte une architecture orientée objet (POO) modulaire et performante. Il se situe dans le répertoire `backend/src/ingestion/` et a pour responsabilité d'extraire les données de l'API PMU, de les transformer et de les charger dans la base de données PostgreSQL.
 
 L'architecture repose sur une classe de base et des classes enfants spécialisées pour chaque type de données (programme, participants, performances, rapports).
 
 ## 2. Structure du code
 
-Le code est organisé comme suit :
+Le code est organisé comme suit, depuis le dossier 'backend/' :
 
 *   **`src/ingestion/base.py`** : contient la classe abstraite `BaseIngestor`. Elle gère la session HTTP, les stratégies de réessai (retry), la connexion à la base de données via le singleton `DatabaseManager` et la sauvegarde des fichiers JSON en cas d'échec (fallback).
 *   **`src/ingestion/program.py`** : gère l'initialisation de la journée (tables `daily_program`, `race_meeting`, `race`).

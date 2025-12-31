@@ -2,7 +2,7 @@
 
 ## 1. Vue d'ensemble
 
-L'API (`src/api`) est le cœur applicatif du projet. Elle expose les données hippiques et fournit désormais des services de **prédiction en temps réel** grâce à l'intégration du modèle de Machine Learning.
+L'API (`backend/src/api`) est le cœur applicatif du projet. Elle expose les données hippiques et fournit désormais des services de **prédiction en temps réel** grâce à l'intégration du modèle de Machine Learning.
 
 Elle est construite avec **FastAPI** pour la performance et **Pydantic** pour la validation stricte des données.
 

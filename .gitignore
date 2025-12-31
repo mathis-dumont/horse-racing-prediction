@@ -83,3 +83,4 @@ data/
 *.json
 backend/src/ml/*.pkl
 backend/src/ml/*.json
+scripts/*

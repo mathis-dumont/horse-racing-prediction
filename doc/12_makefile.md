@@ -42,8 +42,5 @@ Toutes les commandes s’exécutent via :
 - `make test-backend` : tests backend
 - `make test-frontend` : tests frontend
 - `make test-all` : lance tous les tests
-- `make type-check` : vérifications des types (mypy)
 
 ---
-
-

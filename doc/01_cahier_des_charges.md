@@ -1,8 +1,5 @@
 # Cahier des Charges - Projet de Prédiction de Courses Hippiques
 
-**Version** : 1.0
-**Date** : 17 novembre 2025
-
 ## 1. Introduction et Contexte
 
 ### 1.1. Objet du document

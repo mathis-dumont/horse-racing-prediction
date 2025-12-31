@@ -24,23 +24,6 @@ Il couvre l’ensemble de la chaîne :
 
 Ce projet est conçu pour être lancé rapidement via **Docker** (recommandé). Une installation locale manuelle est également possible pour le développement spécifique.
 
-### Prérequis
-
-Avant de commencer, assurez-vous d'avoir installé les outils suivants sur votre machine :
-
-*   **Docker** & **Docker Compose** (Indispensable pour la méthode recommandée).
-*   **Make** (Pour utiliser les raccourcis d'automatisation).
-Parfait 👍
-Voici **l’intégration propre** de l’installation de `make` **directement dans ton README**, au **bon endroit**, avec un **ton académique clair**.
-
-Tu peux **remplacer ta section “Prérequis” actuelle** par celle-ci.
-
----
-
-Voici la version **mise à jour et bien structurée** de ta section **Prérequis**, avec le Makefile intégré et un ton clair pour un projet de cours :
-
----
-
 ## Prérequis
 
 Avant de commencer, assurez-vous d’avoir installé les outils suivants sur votre machine :

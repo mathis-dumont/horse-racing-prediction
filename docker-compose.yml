@@ -12,8 +12,7 @@ services:
       - /app/.pytest_cache
       - /app/.venv
       - /app/failures
-      - /app/data
-    
+        
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

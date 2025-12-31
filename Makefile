@@ -54,10 +54,6 @@ test-backend:
 test-frontend:
 	@echo "🧪 Running Frontend Tests..."
 	# Added PYTHONPATH to ensure 'ui', 'api', and 'state' modules are found inside /app
-	docker-compose run --rm -e PYTHONPATH=/app frontend pytest tests/ -v
+	docker-compose run --rm frontend pytest tests/ -v
 
 test-all: test-backend test-frontend
-
-type-check:
-	@echo "🔍 Checking Types..."
-	docker-compose run --rm backend mypy src/

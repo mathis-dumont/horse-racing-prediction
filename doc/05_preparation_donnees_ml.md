@@ -1,6 +1,6 @@
 # Documentation Technique : Pipeline Machine Learning
 
-Ce document décrit l'architecture du module d'apprentissage automatique (`src/ml`). Contrairement aux scripts séquentiels classiques, ce projet utilise une approche **Pipeline** intégrée, garantissant que les transformations appliquées lors de l'entraînement sont rigoureusement identiques à celles utilisées lors de la prédiction (inférence).
+Ce document décrit l'architecture du module d'apprentissage automatique (`backend/src/ml`). Contrairement aux scripts séquentiels classiques, ce projet utilise une approche **Pipeline** intégrée, garantissant que les transformations appliquées lors de l'entraînement sont rigoureusement identiques à celles utilisées lors de la prédiction (inférence).
 
 ## 1. Vue d'ensemble du flux
 
@@ -77,6 +77,6 @@ Le script génère un fichier binaire sérialisé : `data/model_xgboost.pkl`.
 Pour lancer un ré-entraînement complet du modèle :
 
 ```bash
-# Depuis la racine du projet
+# Depuis le dossier 'backend/' :
 python -m src.ml.trainer
 ```

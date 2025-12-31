@@ -30,8 +30,80 @@ Avant de commencer, assurez-vous d'avoir installé les outils suivants sur votre
 
 *   **Docker** & **Docker Compose** (Indispensable pour la méthode recommandée).
 *   **Make** (Pour utiliser les raccourcis d'automatisation).
-*   **Python 3.12+** (Uniquement si vous optez pour l'installation sans Docker).
-*   **PostgreSQL** (Le projet nécessite une base de données active, le `docker-compose.yml` est configuré pour communiquer avec l'hôte via `host.docker.internal`).
+Parfait 👍
+Voici **l’intégration propre** de l’installation de `make` **directement dans ton README**, au **bon endroit**, avec un **ton académique clair**.
+
+Tu peux **remplacer ta section “Prérequis” actuelle** par celle-ci.
+
+---
+
+Voici la version **mise à jour et bien structurée** de ta section **Prérequis**, avec le Makefile intégré et un ton clair pour un projet de cours :
+
+---
+
+## Prérequis
+
+Avant de commencer, assurez-vous d’avoir installé les outils suivants sur votre machine :
+
+### Docker
+
+* **Docker** & **Docker Compose**
+  Indispensable pour la méthode recommandée (exécution via conteneurs).
+
+---
+
+### Make
+
+Le projet utilise un **Makefile** comme point d’entrée unique pour :
+
+* lancer les services Docker,
+* exécuter les tests,
+* déclencher les pipelines ETL et Machine Learning.
+
+L’outil `make` doit donc être installé sur votre machine.
+
+#### Linux (Ubuntu / Debian)
+
+```bash
+sudo apt update
+sudo apt install make
+```
+
+#### macOS
+
+Installez les outils de développement Apple (inclut `make`) :
+
+```bash
+xcode-select --install
+```
+
+#### Windows
+
+Deux solutions sont possibles :
+
+**Option 1 – WSL (recommandé)**
+Installez Ubuntu via le Microsoft Store, puis :
+
+```bash
+sudo apt update
+sudo apt install make
+```
+
+**Option 2 – Git Bash**
+Installez *Git for Windows*, puis vérifiez que `make` est disponible :
+
+```bash
+make --version
+```
+
+---
+
+### Python et base de données (installation locale uniquement)
+
+Ces prérequis sont nécessaires **uniquement si vous n’utilisez pas Docker** :
+
+* **Python 3.12+**
+* **PostgreSQL**
 
 ---
 

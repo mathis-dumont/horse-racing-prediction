@@ -1,50 +1,52 @@
-# Prédiction des courses hippiques par machine learning
+# Horse Racing Prediction using Machine Learning
 
-Ce projet vise à concevoir une plateforme complète de traitement de données et de prédiction des courses hippiques (Trot), basée sur des techniques de Machine Learning (XGBoost).
+This project aims to design a comprehensive platform for data processing and horse racing prediction (Trotting), based on Machine Learning techniques (XGBoost).
 
-Il couvre l’ensemble de la chaîne :
-- ingestion automatisée des données (ETL),
-- stockage et historisation (PostgreSQL),
-- entraînement et déploiement d’un modèle prédictif,
-- exposition des résultats via une API REST et une interface utilisateur.
+It covers the entire pipeline:
+- automated data ingestion (ETL),
+- storage and historization (PostgreSQL),
+- training and deployment of a predictive model,
+- exposure of results via a REST API and user interface.
+
+> **Note:** This project serves as a technical demonstration of a complete ML pipeline architecture. The implemented models and strategies are intentionally simplified for educational purposes and are not profitable.
 
 ---
 
-## Objectifs du projet
+## Project Objectives
 
-* Centraliser et historiser les données PMU (programmes, partants, performances, rapports)
-* Générer des **probabilités calibrées de victoire**
-* Détecter des **edges mathématiques exploitables**
-* Fournir une **UI claire et rapide** pour l’analyse quotidienne
-* Assurer une **exécution automatisée et reproductible** (CI/CD & CRON)
+* Centralize and historize PMU data (programs, participants, performances, reports)
+* Generate **calibrated win probabilities**
+* Detect **exploitable mathematical edges**
+* Provide a **clear and fast UI** for daily analysis
+* Ensure **automated and reproducible execution** (CI/CD & CRON)
 
 ---
 ## Documentation
 
-Ce projet a necessité la mise en place de très nombreuses étapes, la documentation des étapes principales se situe dans le dossier `doc`.
+This project required the implementation of numerous steps. The documentation for the main steps is located in the `doc` folder.
 
 ---
 
-## Prérequis
+## Prerequisites
 
-Avant de commencer, assurez-vous d’avoir installé les outils suivants sur votre machine :
+Before starting, make sure you have the following tools installed on your machine:
 
 ### Docker
 
 * **Docker** & **Docker Compose**
-  Indispensable pour la méthode recommandée (exécution via conteneurs).
+  Essential for the recommended method (execution via containers).
 
 ---
 
 ### Make
 
-Le projet utilise un **Makefile** comme point d’entrée unique pour :
+The project uses a **Makefile** as a single entry point to:
 
-* lancer les services Docker,
-* exécuter les tests,
-* déclencher les pipelines ETL et Machine Learning.
+* launch Docker services,
+* run tests,
+* trigger ETL and Machine Learning pipelines.
 
-L’outil `make` doit donc être installé sur votre machine.
+The `make` tool must therefore be installed on your machine.
 
 #### Linux (Ubuntu / Debian)
 
@@ -55,7 +57,7 @@ sudo apt install make
 
 #### macOS
 
-Installez les outils de développement Apple (inclut `make`) :
+Install Apple developer tools (includes `make`):
 
 ```bash
 xcode-select --install
@@ -63,10 +65,10 @@ xcode-select --install
 
 #### Windows
 
-Deux solutions sont possibles :
+Two options are available:
 
-**Option 1 – WSL (recommandé)**
-Installez Ubuntu via le Microsoft Store, puis :
+**Option 1 – WSL (recommended)**
+Install Ubuntu via the Microsoft Store, then:
 
 ```bash
 sudo apt update
@@ -74,7 +76,7 @@ sudo apt install make
 ```
 
 **Option 2 – Git Bash**
-Installez *Git for Windows*, puis vérifiez que `make` est disponible :
+Install *Git for Windows*, then verify that `make` is available:
 
 ```bash
 make --version
@@ -82,263 +84,263 @@ make --version
 
 ---
 
-### Python et base de données (installation locale uniquement)
+### Python and Database (local installation only)
 
-Ces prérequis sont nécessaires **uniquement si vous n’utilisez pas Docker** :
+These prerequisites are necessary **only if you are not using Docker**:
 
 * **Python 3.12+**
 * **PostgreSQL**
 
 ---
 
-## Installation & Démarrage
+## Installation & Startup
 
-Ce projet est conçu pour être lancé rapidement via **Docker** (recommandé). Une installation locale manuelle est également possible pour le développement spécifique.
+This project is designed to be launched quickly via **Docker** (recommended). Manual local installation is also possible for specific development.
 
 
 ### Configuration
 
-1.  **Clonage du projet :**
+1.  **Cloning the project:**
     ```bash
-    git clone <url-du-repo>
-    cd <nom-du-projet>
+    git clone <repo-url>
+    cd <project-name>
     ```
 
-2.  **Variables d'environnement :**
-    Le projet nécessite un fichier `.env` à la racine pour fonctionner (connexion BDD)
+2.  **Environment variables:**
+    The project requires a `.env` file at the root to function (database connection)
     
-    Créez un fichier `.env` à la racine et renseignez les variables suivantes :
+    Create a `.env` file at the root and fill in the following variables:
     ```ini
-    # Exemple de configuration .env
-    DB_URL=postgresql://user:password@host.docker.internal:5432/nom_de_la_bdd
+    # Example .env configuration
+    DB_URL=postgresql://user:password@host.docker.internal:5432/database_name
     ```
-    > **Note :** Si le mot de passe de la base de données supabase ne vous a pas été fourni, vous devez faire tourner votre base de données PostgreSQL sur votre machine hôte, utilisez `host.docker.internal` comme hôte dans `DB_URL` pour que le conteneur Docker puisse l'atteindre.
+    > **Note:** If the Supabase database password was not provided to you, you must run your PostgreSQL database on your host machine. Use `host.docker.internal` as the host in `DB_URL` so the Docker container can reach it.
 
 ---
 
-### Méthode 1 : Démarrage rapide avec Docker (Recommandé)
+### Method 1: Quick Start with Docker (Recommended)
 
-L'utilisation du `Makefile` simplifie grandement l'interaction avec Docker Compose.
+Using the `Makefile` greatly simplifies interaction with Docker Compose.
 
-**1. Construction des images**
-Compilez les images Docker pour le backend et le frontend.
+**1. Building the images**
+Compile the Docker images for the backend and frontend.
 ```bash
 make build
-# Ou pour forcer une reconstruction sans cache : make build-nc
+# Or to force a rebuild without cache: make build-nc
 ```
 
-**2. Lancement des services**
-Démarre les conteneurs en arrière-plan (mode détaché).
+**2. Launching the services**
+Starts the containers in the background (detached mode).
 ```bash
 make up
 ```
 
-**3. Initialisation des données (ETL & ML)**
-Une fois les conteneurs lancés, vous devez peupler la base de données et entraîner le modèle.
+**3. Data initialization (ETL & ML)**
+Once the containers are launched, you must populate the database and train the model.
 
-*   **Entraînement du modèle (Training) :**
-    Entraîne le modèle XGBoost sur les données présentes en base.
+*   **Model training:**
+    Trains the XGBoost model on the data present in the database.
     ```bash
     make train
     ```
 
-*   **Optionnel :** Ingestion des données (ETL) :
-    Télécharge et insère les programmes, participants et rapports pour la date du jour.
+*   **Optional:** Data ingestion (ETL):
+    Downloads and inserts programs, participants, and reports for the current date.
     ```bash
     make ingest
     ```
-    *Ceci est optionnel, car la base de données est hébergée sur supabase, et est peuplée tous les jours par un CRON."
+    *This is optional, as the database is hosted on Supabase and is populated daily by a CRON job.*
 
-**4. Accès à l'application**
-*   **Frontend (Interface Utilisateur) :** [http://localhost:8501](http://localhost:8501)
-*   **Backend (API Documentation) :** [http://localhost:8000/docs](http://localhost:8000/docs)
+**4. Application access**
+*   **Frontend (User Interface):** [http://localhost:8501](http://localhost:8501)
+*   **Backend (API Documentation):** [http://localhost:8000/docs](http://localhost:8000/docs)
 
-**Commandes utiles :**
-*   `make logs` : Affiche les logs en temps réel.
-*   `make down` : Arrête les conteneurs.
-*   `make clean` : Arrêt complet, suppression des volumes et nettoyage des caches Python (`__pycache__`).
+**Useful commands:**
+*   `make logs`: Display logs in real time.
+*   `make down`: Stop the containers.
+*   `make clean`: Complete shutdown, volume deletion, and Python cache cleanup (`__pycache__`).
 
 ---
 
-### Méthode 2 : Installation et lancement en Local (Sans Docker)
+### Method 2: Local Installation and Startup (Without Docker)
 
-Si vous devez développer sans Docker, suivez ces étapes. Vous aurez besoin de deux terminaux.
+If you need to develop without Docker, follow these steps. You will need two terminals.
 
-#### Prérequis spécifiques
-*   Assurez-vous que votre la base de données PostgreSQL est accessible dans le .env. (cf configuration partie Docker).
+#### Specific prerequisites
+*   Make sure your PostgreSQL database is accessible in the .env file. (see Docker configuration section).
 
 #### 1. Backend (API)
 
-Dans un **premier terminal** :
+In a **first terminal**:
 
 ```bash
 cd backend
 
-# Création et activation de l'environnement virtuel
+# Create and activate virtual environment
 python3.12 -m venv .venv
-source .venv/bin/activate  # Sur Windows: .venv\Scripts\activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Installation des dépendances
+# Install dependencies
 pip install -r requirements.txt
 
-# Configuration du PYTHONPATH (Important pour les imports absolus 'src.*')
+# Configure PYTHONPATH (Important for absolute imports 'src.*')
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 
-# Lancement du serveur API
+# Launch API server
 uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 #### 2. Frontend (Streamlit)
 
-Dans un **second terminal** :
+In a **second terminal**:
 
 ```bash
 cd frontend
 
-# Création et activation de l'environnement virtuel
+# Create and activate virtual environment
 python3.12 -m venv .venv
 source .venv/bin/activate
 
-# Installation des dépendances
+# Install dependencies
 pip install -r requirements.txt
 
-# Configuration du PYTHONPATH
+# Configure PYTHONPATH
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 
-# Lancement de l'application
+# Launch application
 streamlit run app.py --server.port 8501
 ```
 
 ---
 
-## Automatisation (GitHub Actions)
+## Automation (GitHub Actions)
 
-Le projet intègre une **automatisation complète** via **GitHub Actions**, garantissant la mise à jour des données dans la base de données.
+The project integrates **complete automation** via **GitHub Actions**, ensuring database updates.
 
-### Ingestion quotidienne (CRON)
+### Daily ingestion (CRON)
 
-Un workflow GitHub Actions est exécuté **quotidiennement** pour :
+A GitHub Actions workflow is executed **daily** to:
 
-* Récupérer automatiquement les données PMU du jour
-* Mettre à jour la base **Supabase (PostgreSQL)**
-* Garantir une base toujours synchronisée sans intervention manuelle
+* Automatically retrieve PMU data for the day
+* Update the **Supabase (PostgreSQL)** database
+* Ensure the database is always synchronized without manual intervention
 
-Cette automatisation explique pourquoi l’étape `make ingest` est optionnelle.
+This automation explains why the `make ingest` step is optional.
 
 ---
 
-## Architecture & Fonctionnement
+## Architecture & Operation
 
-Ce projet repose sur une architecture **Microservices-lite**, séparant clairement responsabilités et flux de données.
+This project is based on a **Microservices-lite**, clearly separating responsibilities and data flows.
 
-### Vue d’ensemble
+### Overview
 
 1. **Frontend (Streamlit)**
 
-   * Dashboard interactif
-   * Aucune connexion directe à la base
-   * Communication exclusive via API REST
+   * Interactive dashboard
+   * No direct database connection
+   * Exclusive communication via REST API
 
 2. **Backend (FastAPI)**
 
-   * Exposition des endpoints métier
-   * Chargement du modèle ML en mémoire au démarrage
+   * Exposure of business endpoints
+   * ML model loaded in memory at startup
 
 3. **Data & ML Pipeline**
 
-   * **ETL** : ingestion multithreadée des données PMU
-   * **Training** : génération d’un modèle XGBoost
-   * **Inference** : prédictions temps réel via API
+   * **ETL**: multithreaded PMU data ingestion
+   * **Training**: XGBoost model generation
+   * **Inference**: real-time predictions via API
 
 ---
 
-## Tests & Qualité du Code
+## Tests & Code Quality
 
-Le projet inclut des commandes pour exécuter les tests unitaires et d'intégration via Docker, garantissant un environnement isolé.
+The project includes commands to run unit and integration tests via Docker, ensuring an isolated environment.
 
 ```bash
-# Lancer les tests Backend (Pytest)
+# Run Backend tests (Pytest)
 make test-backend
 
-# Lancer les tests Frontend (Pytest + Mocking)
+# Run Frontend tests (Pytest + Mocking)
 make test-frontend
 
-# Lancer tous les tests
+# Run all tests
 make test-all
 ```
 
 ---
 
-## Structure du Projet
+## Project Structure
 
-L'organisation des fichiers suit les standards de l'industrie pour assurer maintenabilité et scalabilité.
+The file organization follows industry standards to ensure maintainability and scalability.
 
 ```bash
 .
-├── Makefile                # Orchestrateur des commandes (Entry point)
-├── docker-compose.yml      # Configuration des services Docker
-├── .env                    # Variables d'environnement (Non versionné)
+├── Makefile                # Command orchestrator (Entry point)
+├── docker-compose.yml      # Docker services configuration
+├── .env                    # Environment variables (Not versioned)
 │
-├── backend/                # API & Logique ML
+├── backend/                # API & ML Logic
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   ├── src/
-│   │   ├── api/            # Routes FastAPI, Schemas (Pydantic), Repositories
-│   │   ├── core/           # Config globale, Database Manager
-│   │   ├── ingestion/      # ETL (Programmes, Participants, Rapports)
+│   │   ├── api/            # FastAPI Routes, Schemas (Pydantic), Repositories
+│   │   ├── core/           # Global Config, Database Manager
+│   │   ├── ingestion/      # ETL (Programs, Participants, Reports)
 │   │   ├── ml/             # Feature Engineering, Training, Prediction
-│   │   └── cli/            # Scripts en ligne de commande (ex: etl.py)
-│   └── tests/              # Tests unitaires et d'intégration (Pytest)
+│   │   └── cli/            # Command-line scripts (e.g., etl.py)
+│   └── tests/              # Unit and integration tests (Pytest)
 │
-├── frontend/               # Interface Streamlit
+├── frontend/               # Streamlit Interface
 │   ├── Dockerfile
-│   ├── app.py              # Point d'entrée de l'application
-│   ├── ui/                 # Composants visuels (Sidebar, Grids, Analysis)
-│   ├── state/              # Gestion d'état de session
-│   ├── api/                # Client HTTP interne vers le Backend
-│   └── tests/              # Tests End-to-End et UI
+│   ├── app.py              # Application entry point
+│   ├── ui/                 # Visual components (Sidebar, Grids, Analysis)
+│   ├── state/              # Session state management
+│   ├── api/                # Internal HTTP client to Backend
+│   └── tests/              # End-to-End and UI tests
 │
-└── data/                   # modèle ML (.pkl) et dumps locaux
+└── data/                   # ML model (.pkl) and local dumps
 ```
 
 ---
 
-## Fonctionnalités Principales
+## Main Features
 
-### 1. Programme & Cotes
+### 1. Programs & Odds
 
-* Réunions et courses par date
-* Partants, drivers, entraîneurs
-* Cotes live
+* Meetings and races by date
+* Participants, drivers, trainers
+* Live odds
 
-### 2. Prédictions IA
+### 2. AI Predictions
 
-* Probabilités calibrées (0–100 %)
-* Ranking prédictif
-* Feature engineering (forme, musique, déferrage…)
+* Calibrated probabilities (0–100%)
+* Predictive ranking
+* Feature engineering (form, music, shoeing...)
 
-### 3. Module “Sniper”
+### 3. "Sniper" Module
 
-Stratégie automatisée de **Value Betting** :
+Automated **Value Betting** strategy:
 
-* Comparaison IA vs marché
-* Détection d’edges positifs
-* Filtres stricts (cotes, edge min, liquidité)
+* AI vs market comparison
+* Positive edge detection
+* Strict filters (odds, minimum edge, liquidity)
 
 ---
 
-## Bonnes pratiques & Ops
+## Best Practices & Ops
 
-### Gestion des erreurs Docker
-Si vous rencontrez des erreurs de permissions (ex: `Permission denied: '__pycache__'`) dues à la création de fichiers par Docker (root) sur votre système hôte, utilisez la commande :
+### Docker error handling
+If you encounter permission errors (e.g., `Permission denied: '__pycache__'`) due to Docker creating files as root on your host system, use the command:
 
 ```bash
 make clean
-# Cette commande arrête les conteneurs et force la suppression des caches avec sudo
+# This command stops containers and forces cache deletion with sudo
 ```
 
-### Ajouter une nouvelle dépendance
-Si vous ajoutez une librairie dans `backend/requirements.txt` ou `frontend/requirements.txt`, vous devez reconstruire les images :
+### Adding a new dependency
+If you add a library to `backend/requirements.txt` or `frontend/requirements.txt`, you must rebuild the images:
 
 ```bash
 make build
@@ -346,20 +348,20 @@ make build
 
 ---
 
-## Documentation API
+## API Documentation
 
-Une fois le backend lancé, la documentation interactive (Swagger UI) est disponible automatiquement. Elle permet de tester les endpoints et de voir les schémas de données attendus.
+Once the backend is launched, interactive documentation (Swagger UI) is automatically available. It allows you to test endpoints and view expected data schemas.
 
-*   **URL Locale :** `http://localhost:8000/docs`
-*   **Schéma JSON :** `http://localhost:8000/openapi.json`
+*   **Local URL:** `http://localhost:8000/docs`
+*   **JSON Schema:** `http://localhost:8000/openapi.json`
 
 ---
 
 ## Contribution
 
-1. Créez une branche (`feature/ma-feature`)
-2. Implémentez + testez (`make test-all`)
-3. Committez
-4. Ouvrez une Pull Request
+1. Create a branch (`feature/my-feature`)
+2. Implement + test (`make test-all`)
+3. Commit
+4. Open a Pull Request
 
 ---
